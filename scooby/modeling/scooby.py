@@ -5,17 +5,17 @@ from einops import rearrange
 import torch.nn.functional as F
 
 
-batch_conv = torch.vmap(nn.functional.conv1d, chunk_size = 1024)
+batch_conv = torch.vmap(F.conv1d, chunk_size = 1024)
 
-class ScBorzoi(Borzoi):
-    def __init__(self, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, **params):
+class Scooby(Borzoi):
+    def __init__(self, config, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, **params):
+        super(Scooby, self).__init__(config)
         self.cell_emb_dim = cell_emb_dim
         self.cachesize = cachesize
         self.use_transform_borzoi_emb = use_transform_borzoi_emb
         self.n_tracks = n_tracks
         self.embedding_dim = embedding_dim
         self.disable_cache = disable_cache
-        super(ScBorzoi, self).__init__(**params)
         dropout_modules = [module for module in self.modules() if isinstance(module, torch.nn.Dropout)]
         batchnorm_modules = [module for module in self.modules() if isinstance(module, torch.nn.BatchNorm1d)]
         [module.eval() for module in dropout_modules] # disable dropout

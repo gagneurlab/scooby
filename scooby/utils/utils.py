@@ -1,25 +1,7 @@
-import pandas as pd
-import pyBigWig
-import pybigtools
-import time
 import scipy
 import torch
-import pandas as pd
 import numpy as np
 import tqdm
-import snapatac2 as sp
-import scanpy as sc
-import os
-import pandas as pd
-import numpy as np
-import scipy
-from torch.utils.data import Dataset
-from polya_project.data import GenomeIntervalDataset
-import torch
-import numpy as np
-import polars as pl
-import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from scipy import stats
 from matplotlib import pyplot as plt
@@ -95,7 +77,6 @@ def multinomial_torch(
     y_pred += epsilon
 
     # sum across lengths
-    s_true = y_true.sum(dim=1, keepdim=True)
     s_pred = y_pred.sum(dim=1, keepdim=True)
 
     # normalize to sum to one
@@ -159,7 +140,6 @@ def poisson_torch(
 
 def fix_rev_comp_multiome(outputs_rev_comp):
     num_pos = outputs_rev_comp.shape[2] // 3
-    test = torch.arange(0, num_pos).unsqueeze(0)
     fix_indices_tensor = (torch.arange(0, num_pos * 3, step=3, dtype=int).repeat_interleave(3)) + torch.tensor(
         [1, 0, 2]
     ).repeat(num_pos)
@@ -503,7 +483,6 @@ import matplotlib as mpl
 from matplotlib.text import TextPath
 from matplotlib.patches import PathPatch, Rectangle
 from matplotlib.font_manager import FontProperties
-from matplotlib import gridspec
 from matplotlib.ticker import FormatStrFormatter
 
 

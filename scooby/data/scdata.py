@@ -7,7 +7,7 @@ import torch
 import tqdm
 from torch.utils.data import Dataset
 
-from polya_project.data import FastaInterval, GenomeIntervalDataset
+from enformer_pytorch.data import FastaInterval, GenomeIntervalDataset
 
 min_value = torch.finfo(torch.float16).min
 max_value = torch.finfo(torch.float16).max
