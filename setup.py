@@ -11,7 +11,7 @@ setup(
     description='scooby: Modeling multi-modal genomic profiles from DNA sequence at single-cell resolution',
     install_requires=[
         "accelerate >= 0.24.1",
-        "enformer-pytorch >= 0.8.9",
+        "enformer-pytorch >= 0.8.10",
         "borzoi-pytorch @ git+https://github.com/johahi/borzoi-pytorch.git",
         "peft @ git+https://github.com/lauradmartens/peft.git",
         "scanpy >= 1.10.3",
