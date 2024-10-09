@@ -2,6 +2,7 @@ from borzoi_pytorch import Borzoi as Borzoi
 import torch
 import torch.nn as nn
 from einops import rearrange
+import torch.nn.functional as F
 
 
 batch_conv = torch.vmap(nn.functional.conv1d, chunk_size = 1024)
@@ -85,11 +86,10 @@ class ScBorzoi(Borzoi):
         x = seq_emb
         if bins_to_predict is not None:
             out = batch_conv(x[:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
-            out = torch.nn.functional.softplus(out).permute(0,2,1)
         else:
             out = batch_conv(x, cell_emb_conv_weights, cell_emb_conv_biases)
-            out = torch.nn.functional.softplus(out).permute(0,2,1)
-        return out
+        out = F.softplus(out)
+        return out.permute(0,2,1)
 
     
     def forward_sequence_w_convs(self, sequence, cell_emb_conv_weights, cell_emb_conv_biases, bins_to_predict = None):
@@ -98,20 +98,17 @@ class ScBorzoi(Borzoi):
                 if torch.equal(sequence,s):
                     if bins_to_predict is not None: # unclear if this if is even needed or if self.last_embs[i][:,:,bins_to_predict] just also works when bins_to_predict is None 
                         out = batch_conv(self.last_embs[i][:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
-                        out = torch.nn.functional.softplus(out)
-                        return out.permute(0,2,1)
                     else:
                         out = batch_conv(self.last_embs[i], cell_emb_conv_weights, cell_emb_conv_biases)
-                        out = torch.nn.functional.softplus(out)
-                        return out.permute(0,2,1)
+                    out = F.softplus(out)
+                    return out.permute(0,2,1)
         x = self.forward_seq_to_emb(sequence)
         if bins_to_predict is not None:
             out = batch_conv(x[:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
-            out = torch.nn.functional.softplus(out).permute(0,2,1)
         else:
             out = batch_conv(x, cell_emb_conv_weights, cell_emb_conv_biases)
-            out = torch.nn.functional.softplus(out).permute(0,2,1)
-        return out
+        out = F.softplus(out)
+        return out.permute(0,2,1)
         
     def forward(self, sequence, cell_emb):   
         cell_emb_conv_weights,cell_emb_conv_biases = self.forward_cell_embs_only(cell_emb)
