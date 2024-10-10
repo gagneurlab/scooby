@@ -16,10 +16,15 @@ The reproducibility [repository](https://github.com/gagneurlab/scooby_reproducib
  - [peft v0.10.1](https://github.com/lauradmartens/peft)
 
 ## Installation instructions
-Installation will take roughly 30mins using conda.
- - Install above packages
+### Prerequisites
+scooby uses a a custom version of SnapATAC2, which we built using rust:
+ - Install rust with `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+ - `pip install git+https://github.com/lauradmartens/SnapATAC2.git#egg=snapatac2&subdirectory=snapatac2`
+### Scooby package installation
+ - `pip install git+https://github.com/gagneurlab/scooby.git`
  - Download file contents from the Zenodo [repo](https://zenodo.org/records/13891693)
  - Use examples from the scooby reproducibility [repository](https://github.com/gagneurlab/scooby_reproducibility)
+
 
 ## Training 
 We offer a [train script](https://github.com/gagneurlab/scooby/blob/main/scripts/train.py), which requires SNAPATAC2-preprocessed adatas and embeddings. Training takes 1-2 days on 8 NVIDIA A40 GPUs with 128GB RAM and 32 cores.
