@@ -1,28 +1,12 @@
-import pandas as pd
-import pyBigWig
-import pybigtools
-import time
 import scipy
 import torch
-import pandas as pd
 import numpy as np
 import tqdm
-import snapatac2 as sp
-import scanpy as sc
-import os
-import pandas as pd
-import numpy as np
-import scipy
-from torch.utils.data import Dataset
-from polya_project.data import GenomeIntervalDataset
-import torch
-import numpy as np
-import polars as pl
-import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from scipy import stats
 from matplotlib import pyplot as plt
+import anndata as ad
+from anndata.experimental import read_elem, sparse_dataset
 
 
 def poisson_multinomial_torch(
@@ -32,11 +16,21 @@ def poisson_multinomial_torch(
     epsilon: float = 1e-6,
     rescale: bool = False,
 ):
-    """Possion decomposition with multinomial specificity term.
+    """
+    Calculates the Poisson-Multinomial loss.
+
+    This loss function combines a Poisson loss term for the total count and a multinomial loss term for the 
+    distribution across sequence positions.
 
     Args:
-      total_weight (float): Weight of the Poisson total term.
-      epsilon (float): Added small value to avoid log(0).
+        y_pred (torch.Tensor): Predicted values (batch_size, seq_len).
+        y_true (torch.Tensor): True values (batch_size, seq_len).
+        total_weight (float, optional): Weight of the Poisson total term. Defaults to 0.2.
+        epsilon (float, optional): Small value added to avoid log(0). Defaults to 1e-6.
+        rescale (bool, optional): Whether to rescale the loss. Defaults to False.
+
+    Returns:
+        torch.Tensor: The mean Poisson-Multinomial loss.
     """
     seq_len = y_true.shape[1]
 
@@ -82,11 +76,20 @@ def multinomial_torch(
     epsilon: float = 1e-6,
     rescale: bool = False,
 ):
-    """Possion decomposition with multinomial specificity term.
+    """
+    Calculates the Multinomial loss.
+
+    This loss function measures the difference between the predicted and true distributions across sequence positions.
 
     Args:
-      total_weight (float): Weight of the Poisson total term.
-      epsilon (float): Added small value to avoid log(0).
+        y_pred (torch.Tensor): Predicted values (batch_size, seq_len).
+        y_true (torch.Tensor): True values (batch_size, seq_len).
+        total_weight (float, optional): Not used in this function, but included for compatibility with other loss functions. Defaults to 0.2.
+        epsilon (float, optional): Small value added to avoid log(0). Defaults to 1e-6.
+        rescale (bool, optional): Whether to rescale the loss. Defaults to False.
+
+    Returns:
+        torch.Tensor: The mean Multinomial loss.
     """
     seq_len = y_true.shape[1]
 
@@ -95,7 +98,6 @@ def multinomial_torch(
     y_pred += epsilon
 
     # sum across lengths
-    s_true = y_true.sum(dim=1, keepdim=True)
     s_pred = y_pred.sum(dim=1, keepdim=True)
 
     # normalize to sum to one
@@ -126,11 +128,20 @@ def poisson_torch(
     epsilon: float = 1e-6,
     rescale: bool = False,
 ):
-    """Possion decomposition with multinomial specificity term.
+    """
+    Calculates the Poisson loss.
+
+    This loss function measures the difference between the predicted and true total counts.
 
     Args:
-      total_weight (float): Weight of the Poisson total term.
-      epsilon (float): Added small value to avoid log(0).
+        y_pred (torch.Tensor): Predicted values (batch_size, seq_len).
+        y_true (torch.Tensor): True values (batch_size, seq_len).
+        total_weight (float, optional): Not used in this function, but included for compatibility with other loss functions. Defaults to 0.2.
+        epsilon (float, optional): Small value added to avoid log(0). Defaults to 1e-6.
+        rescale (bool, optional): Whether to rescale the loss. Defaults to False.
+
+    Returns:
+        torch.Tensor: The mean Poisson loss.
     """
     seq_len = y_true.shape[1]
 
@@ -158,8 +169,19 @@ def poisson_torch(
 
 
 def fix_rev_comp_multiome(outputs_rev_comp):
+    """
+    Reverses the order of elements in the output tensor for the reverse complement sequence in the multiome model.
+
+    This function rearranges the elements of the output tensor to match the correct order for the reverse 
+    complement sequence, ensuring that the RNA and ATAC tracks are in the expected positions.
+
+    Args:
+        outputs_rev_comp (torch.Tensor): The output tensor for the reverse complement sequence.
+
+    Returns:
+        torch.Tensor: The rearranged output tensor.
+    """
     num_pos = outputs_rev_comp.shape[2] // 3
-    test = torch.arange(0, num_pos).unsqueeze(0)
     fix_indices_tensor = (torch.arange(0, num_pos * 3, step=3, dtype=int).repeat_interleave(3)) + torch.tensor(
         [1, 0, 2]
     ).repeat(num_pos)
@@ -169,6 +191,18 @@ def fix_rev_comp_multiome(outputs_rev_comp):
 
 
 def fix_rev_comp2(outputs_rev_comp):
+    """
+    Reverses the order of elements in the output tensor for the reverse complement sequence (for RNA-only predictions).
+
+    This function rearranges the elements of the output tensor to match the correct order for the reverse 
+    complement sequence for RNA only predictions.
+
+    Args:
+        outputs_rev_comp (torch.Tensor): The output tensor for the reverse complement sequence.
+
+    Returns:
+        torch.Tensor: The rearranged output tensor.
+    """
     num_pos = outputs_rev_comp.shape[2]
     test = torch.arange(0, num_pos).unsqueeze(0)
     fix_indices_tensor = torch.zeros(1, num_pos)
@@ -181,6 +215,17 @@ def fix_rev_comp2(outputs_rev_comp):
 
 
 def evaluate(accelerator, csb, val_loader):
+    """
+    Evaluates the model on the validation set.
+
+    This function performs inference on the validation set, calculates the Pearson correlation between the predicted
+    and true profiles, and logs the results using the accelerator.
+
+    Args:
+        accelerator: The accelerator object (e.g., from Hugging Face Accelerate).
+        csb (torch.nn.Module): The model.
+        val_loader (torch.utils.data.DataLoader): The validation data loader.
+    """
     device = accelerator.device
     csb.eval()
     output_list, target_list, pearsons_per_track = [], [], []
@@ -225,6 +270,17 @@ def evaluate(accelerator, csb, val_loader):
 
 
 def undo_squashed_scale(x, clip_soft=384, track_transform=3 / 4):
+    """
+    Reverses the squashed scaling transformation applied to the output profiles.
+
+    Args:
+        x (torch.Tensor): The input tensor to be unsquashed.
+        clip_soft (float, optional): The soft clipping value. Defaults to 384.
+        track_transform (float, optional): The transformation factor. Defaults to 3/4.
+
+    Returns:
+        torch.Tensor: The unsquashed tensor.
+    """
     x = x.clone()  # IMPORTANT BECAUSE OF IMPLACE OPERATIONS TO FOLLOW?
 
     # undo soft_clip
@@ -240,6 +296,18 @@ def undo_squashed_scale(x, clip_soft=384, track_transform=3 / 4):
 
 
 def squashed_scale(x, clip_soft=384, clip=768, track_transform=3 / 4):
+    """
+    Applies the squashed scaling transformation to the input tensor.
+
+    Args:
+        x (torch.Tensor): The input tensor to be squashed.
+        clip_soft (float, optional): The soft clipping value. Defaults to 384.
+        clip (float, optional): The hard clipping value. Defaults to 768.
+        track_transform (float, optional): The transformation factor. Defaults to 3/4.
+
+    Returns:
+        torch.Tensor: The squashed tensor.
+    """
     x = x.clone()  # IMPORTANT BECAUSE OF IMPLACE OPERATIONS TO FOLLOW
     # undo soft_clip
     seq_cov = -1 + (1 + x) ** track_transform
@@ -251,6 +319,19 @@ def squashed_scale(x, clip_soft=384, clip=768, track_transform=3 / 4):
 
 
 def get_gene_slice_and_strand(transcriptome, gene, position, span, sliced=True):
+    """
+    Retrieves the gene slice and strand information from the transcriptome.
+
+    Args:
+        transcriptome: The transcriptome object.
+        gene (str): The name of the gene.
+        position (int): The genomic position.
+        span (int): The span of the genomic region.
+        sliced (bool, optional): Whether to slice the output. Defaults to True.
+
+    Returns:
+        Tuple[torch.Tensor, str]: The gene slice and strand.
+    """
     gene_slice = transcriptome.genes[gene].output_slice(
         position, 6144 * 32, 32, span=span, sliced=sliced
     )  # select right columns
@@ -259,6 +340,20 @@ def get_gene_slice_and_strand(transcriptome, gene, position, span, sliced=True):
 
 
 def process_rna(outputs, strand, clip_soft, num_neighbors):
+    """
+    Processes the RNA output of the model.
+
+    This function applies unsquashing and normalization to the RNA output.
+
+    Args:
+        outputs (torch.Tensor): The RNA output of the model.
+        strand (str): The strand of the gene.
+        clip_soft (float): The soft clipping value.
+        num_neighbors (int): The number of neighbors.
+
+    Returns:
+        torch.Tensor: The processed RNA output.
+    """
     num_pos = outputs.shape[-1]
     if strand == "+":
         return undo_squashed_scale(outputs[0, :, :num_pos:2], clip_soft=clip_soft) * (1 / num_neighbors)
@@ -267,10 +362,38 @@ def process_rna(outputs, strand, clip_soft, num_neighbors):
 
 
 def process_atac(outputs, num_neighbors):
+    """
+    Processes the ATAC output of the model.
+
+    This function applies normalization to the ATAC output.
+
+    Args:
+        outputs (torch.Tensor): The ATAC output of the model.
+        num_neighbors (int): The number of neighbors.
+
+    Returns:
+        torch.Tensor: The processed ATAC output.
+    """
     return outputs[0] * 20 * (1 / num_neighbors)
 
 
 def get_outputs(csb, seqs, gene_slice, region_slice, predict, model_type, conv_weight, conv_bias):
+    """
+    Gets the outputs of the model for the given sequences, gene slice, and region slice.
+
+    Args:
+        csb (torch.nn.Module): The model.
+        seqs (torch.Tensor): The input sequences.
+        gene_slice (torch.Tensor): The bins to predict for RNA.
+        region_slice (torch.Tensor): The bins to predict for ATAC.
+        predict (callable): The prediction function.
+        model_type (str): The type of the model.
+        conv_weight (torch.Tensor): The convolutional weights.
+        conv_bias (torch.Tensor): The convolutional biases.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor]: The RNA and ATAC outputs.
+    """
     seqs_rev_comp = torch.flip(seqs.permute(0, 2, 1), (-1, -2)).permute(0, 2, 1)
     if model_type == "multiome":
         outputs = predict(csb, seqs, seqs_rev_comp, conv_weight, conv_bias, bins_to_predict=None)
@@ -303,6 +426,26 @@ def get_outputs(csb, seqs, gene_slice, region_slice, predict, model_type, conv_w
 def get_pseudobulk_count_pred(
     csb, seqs, cell_emb_conv_weights_and_biases, gene_slice, strand, predict, clip_soft, model_type, num_neighbors=1
 ):
+    """
+    Calculates the predicted pseudobulk count for a given gene.
+
+    This function predicts the gene expression for each cell in a cell type using the provided cell embeddings,
+    sums the unsquashed predictions over all cells, and returns the total count.
+
+    Args:
+        csb (torch.nn.Module): The model.
+        seqs (torch.Tensor): The input sequences.
+        cell_emb_conv_weights_and_biases (List[Tuple[torch.Tensor, torch.Tensor]]): A list of tuples containing the convolutional weights and biases for each cell in the cell type.
+        gene_slice (torch.Tensor): The bins to predict for RNA (e.g. exons).
+        strand (str): The strand of the gene.
+        predict (callable): The prediction function.
+        clip_soft (float): The soft clipping value.
+        model_type (str): The type of the model. Should be one of "multiome", "multiome_rna", "multiome_atac", or "rna".
+        num_neighbors (int, optional): The number of neighbors. Defaults to 1.
+
+    Returns:
+        torch.Tensor: The predicted pseudobulk count for the gene.
+    """
     seqs_rev_comp = torch.flip(seqs.permute(0, 2, 1), (-1, -2)).permute(0, 2, 1)
     stacked_outputs = []
     # go over embeddings for all cells of a cell type, sum the unsquashed predictions
@@ -335,14 +478,17 @@ def get_cell_count_pred(
     chunk_size=70000,
 ):
     """
-    Calculates the predicted cell count for rna, atac or both.
+    Calculates the predicted cell count for RNA, ATAC, or both.
+
+    This function predicts the genomic profiles for each cell, aggregates them according to the model type, 
+    and returns the aggregated counts.
 
     Args:
         csb (torch.nn.Module): The model.
         seqs (torch.Tensor): The input sequences.
-        gene_slice (torch.Tensor): The bins to predict for rna (e.g. exons).
+        gene_slice (torch.Tensor): The bins to predict for RNA (e.g., exons).
         strand (str): The strand of the gene.
-        region_slice (torch.Tensor): The bins to predict for atac (e.g. peaks).
+        region_slice (torch.Tensor): The bins to predict for ATAC (e.g., peaks).
         predict (callable): The prediction function.
         clip_soft (float): The soft clipping value.
         model_type (str): The type of the model. Should be one of "multiome", "multiome_rna", "multiome_atac", or "rna".
@@ -353,7 +499,7 @@ def get_cell_count_pred(
         chunk_size (int, optional): The chunk size for splitting the embeddings. Defaults to 70000.
 
     Returns:
-        torch.Tensor: The predicted cell count.
+        Dict[str, torch.Tensor]: A dictionary containing the predicted RNA and ATAC counts.
     """
     assert model_type in ["multiome", "multiome_rna", "multiome_atac", "rna"], "Invalid model_type"
     if model_type in ["multiome_rna", "rna"]:
@@ -416,6 +562,25 @@ def get_cell_count_pred(
 
 
 def get_cell_profile_pred(csb, seqs, embeddings, predict, clip_soft, model_type, num_neighbors=1, chunk_size=70000):
+    """
+    Calculates the predicted profiles for each cell.
+
+    This function predicts the genomic profiles for each cell, applies unsquashing and normalization, and returns the 
+    processed profiles.
+
+    Args:
+        csb (torch.nn.Module): The model.
+        seqs (torch.Tensor): The input sequences.
+        embeddings (torch.Tensor): The embeddings for all cells.
+        predict (callable): The prediction function.
+        clip_soft (float): The soft clipping value.
+        model_type (str): The type of the model. Should be one of "multiome", "multiome_rna", "multiome_atac", or "rna".
+        num_neighbors (int, optional): The number of neighbors. Defaults to 1.
+        chunk_size (int, optional): The chunk size for splitting the embeddings. Defaults to 70000.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: The processed RNA profiles for the plus and minus strands, and the processed ATAC profile.
+    """
     seqs_rev_comp = torch.flip(seqs.permute(0, 2, 1), (-1, -2)).permute(0, 2, 1)
     stacked_outputs_rna_plus, stacked_outputs_rna_minus, stacked_outputs_atac = [], [], []
 
@@ -455,6 +620,24 @@ def get_cell_profile_pred(csb, seqs, embeddings, predict, clip_soft, model_type,
 def get_pseudobulk_profile_pred(
     csb, seqs, cell_emb_conv_weights_and_biases, predict, clip_soft, model_type, num_neighbors=1
 ):
+    """
+    Calculates the predicted pseudobulk profiles for a given cell type.
+
+    This function predicts the genomic profiles for each cell in a cell type using the provided cell embeddings,
+    sums the unsquashed predictions over all cells, and returns the total profile for each genomic position.
+
+    Args:
+        csb (torch.nn.Module): The model.
+        seqs (torch.Tensor): The input sequences.
+        cell_emb_conv_weights_and_biases (List[Tuple[torch.Tensor, torch.Tensor]]): A list of tuples containing the convolutional weights and biases for each cell in the cell type.
+        predict (callable): The prediction function.
+        clip_soft (float): The soft clipping value.
+        model_type (str): The type of the model. Should be one of "multiome", "multiome_rna", "multiome_atac", or "rna".
+        num_neighbors (int, optional): The number of neighbors. Defaults to 1.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: The pseudobulk RNA profiles for the plus and minus strands, and the pseudobulk ATAC profile.
+    """
     seqs_rev_comp = torch.flip(seqs.permute(0, 2, 1), (-1, -2)).permute(0, 2, 1)
     stacked_outputs_rna_plus, stacked_outputs_rna_minus, stacked_outputs_atac = [], [], []
 
@@ -484,6 +667,21 @@ def get_pseudobulk_profile_pred(
 
 
 def get_targets(targets, clip_soft, model_type, num_neighbors=1):
+    """
+    Processes the target profiles for RNA and ATAC.
+
+    This function applies unsquashing and normalization to the target profiles and splits them into separate 
+    tensors for the plus and minus strands of RNA and for ATAC.
+
+    Args:
+        targets (torch.Tensor): The target profiles.
+        clip_soft (float): The soft clipping value.
+        model_type (str): The type of the model. Should be one of "multiome", "multiome_rna", "multiome_atac", or "rna".
+        num_neighbors (int, optional): The number of neighbors. Defaults to 1.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: The processed RNA profiles for the plus and minus strands, and the processed ATAC profile.
+    """
     if "multiome" in model_type:
         targets_rna = targets[:, :, torch.tensor([1, 1, 0]).repeat(targets.shape[2] // 3).bool()]
         targets_atac = targets[:, :, torch.tensor([0, 0, 1]).repeat(targets.shape[2] // 3).bool()]
@@ -499,11 +697,50 @@ def get_targets(targets, clip_soft, model_type, num_neighbors=1):
     return targets_rna_plus.permute(1, 0), targets_rna_minus.permute(1, 0), targets_atac.permute(1, 0)
 
 
+def read_backed(group, key):
+    """
+    Args:
+        group (h5py.Group): HDF5 group object containing the AnnData data.
+        key (str): Key within the 'obsm' group specifying the sparse matrix to load.
+
+    Returns:
+        anndata.AnnData: The loaded AnnData object.
+    """
+    return ad.AnnData(
+        sparse_dataset(group["X"]),
+        obsm={'fragment_single': sparse_dataset(group["obsm"][key])},
+        **{
+            k: read_elem(group[k]) if k in group else {}
+            for k in ["layers", "obs", "var", "varm", "uns", "obsp", "varp"]
+        }
+    )
+
+
+def add_weight_decay(model, lr, weight_decay=1e-5, skip_list=()):
+    """
+    Adding weight decay for model training.
+    """
+    decay = []
+    no_decay = []
+    high_lr = []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        if len(param.shape) == 1 or name in skip_list:
+            no_decay.append(param)
+        elif "cell_state_to_conv" in name:
+            high_lr.append(param)
+            #accelerator.print ("setting to highlr", name)
+        else:
+            decay.append(param)
+    return [{'params': high_lr, 'weight_decay': weight_decay, 'lr' : 4e-4}, {'params': no_decay, 'weight_decay': 0., 'lr' : lr}, {'params': decay, 'weight_decay': weight_decay, 'lr' : lr}]
+
+
+
 import matplotlib as mpl
 from matplotlib.text import TextPath
 from matplotlib.patches import PathPatch, Rectangle
 from matplotlib.font_manager import FontProperties
-from matplotlib import gridspec
 from matplotlib.ticker import FormatStrFormatter
 
 
