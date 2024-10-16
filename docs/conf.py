@@ -27,7 +27,35 @@ autoapi_dirs = ['../scooby']
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = 'furo'
+html_logo = "logo.png"
+html_title = "scooby"
+html_theme_options = {
+    #"sidebar_hide_name": True,
+    "light_css_variables": {
+        "color-brand-primary": "#003262",
+        "color-brand-content": "#003262",
+        "admonition-font-size": "var(--font-size-normal)",
+        "admonition-title-font-size": "var(--font-size-normal)",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#e6f3ff",
+        "color-brand-content": "#e6f3ff",
+        "admonition-font-size": "var(--font-size-normal)",
+        "admonition-title-font-size": "var(--font-size-normal)",
+    },
+    "footer_icons": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/gagneurlab/scooby",
+            "html": "",
+            "class": "fab fa-github",
+        },
+    ],
+}
+
+
+"""
 html_static_path = ['_static']
 html_sidebars = {
     '**': [
@@ -38,3 +66,4 @@ html_sidebars = {
         'donate.html',
     ]
 }
+"""

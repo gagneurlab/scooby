@@ -1,5 +1,9 @@
 Scooby
 ======
+
+.. raw:: html
+
+   <img width="150" alt="image" src="https://scooby.readthedocs.io/en/latest/_static/logo.png">
 .. image:: https://readthedocs.org/projects/scooby/badge/?version=latest
     :target: https://scooby.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
@@ -54,7 +58,7 @@ takes 1-2 days on 8 NVIDIA A40 GPUs with 128GB RAM and 32 cores.
 Model architecture
 ------------------
 
-Currently, the model only supports a batch size of 1.
+Currently, the model is only tested with a batch size of 1.
 
 .. raw:: html
 
