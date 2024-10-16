@@ -51,7 +51,7 @@ takes 1-2 days on 8 NVIDIA A40 GPUs with 128GB RAM and 32 cores.
 Model architecture
 ------------------
 
-Currently, the model only supports a batch size of 1.
+Currently, the model is only tested with a batch size of 1.
 
 .. raw:: html
 
