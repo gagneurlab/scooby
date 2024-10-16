@@ -14,6 +14,20 @@ max_value = torch.finfo(torch.float16).max
 
 
 def _sparse_to_coverage_rna(m, seq_coord, strand):
+    """
+    Converts a sparse RNA expression matrix to a dense coverage vector.
+
+    This function processes a sparse matrix representing RNA expression counts and converts it into a dense 
+    coverage vector, accounting for the strand information.
+
+    Args:
+        m (scipy.sparse.csr_matrix): Sparse matrix of RNA expression counts.
+        seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+        strand (str): Strand of the gene ('plus' or 'minus').
+
+    Returns:
+        torch.Tensor: Dense coverage vector for RNA expression.
+    """
     _, _, chrom_end, start, end, seq_coord_2, seq_coord_3 = seq_coord
     m = m[:, start:end]
     # Initialize dense matrix with zeros
@@ -38,6 +52,16 @@ def _sparse_to_coverage_rna(m, seq_coord, strand):
 
 
 def _sparse_to_coverage_atac(m, seq_coord):
+    """
+    Converts a sparse ATAC-seq insertion matrix to a dense coverage vector.
+
+    Args:
+        m (scipy.sparse.csr_matrix): Sparse matrix of ATAC-seq insertion counts.
+        seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+
+    Returns:
+        torch.Tensor: Dense coverage vector for ATAC-seq insertions.
+    """
     _, _, chrom_end, start, end, seq_coord_2, seq_coord_3 = seq_coord
     m = m[:, start:end]
     dense_matrix = m.sum(0).astype(np.single).A[0]
@@ -64,6 +88,27 @@ class onTheFlyDataset(Dataset):
         cells_to_run=None,
         cell_weights=None,
     ):
+        """
+    Dataset for on-the-fly generation of single-cell genomic profiles from sparse data.
+
+    This dataset processes sparse RNA and (optionally) ATAC-seq data to generate dense coverage profiles 
+    for individual cells or pseudobulk aggregates of cells. It utilizes cell embeddings to guide the selection 
+    of cells and their neighbors.
+
+    Attributes:
+        adata_plus (anndata.AnnData): AnnData object containing RNA expression data for the plus strand.
+        adata_minus (anndata.AnnData): AnnData object containing RNA expression data for the minus strand.
+        neighbors (scipy.sparse.csr_matrix): Sparse matrix representing cell neighborhood relationships.
+        embedding (pd.DataFrame): DataFrame containing cell embeddings.
+        ds (GenomeIntervalDataset): Dataset providing genomic intervals and sequences.
+        clip_soft (float): Soft clipping value for RNA coverage normalization.
+        cell_sample_size (int, optional): Number of cells to sample per sequence. Defaults to 32.
+        get_targets (bool, optional): Whether to generate target profiles. Defaults to True.
+        random_cells (bool, optional): Whether to randomly sample cells. Defaults to True.
+        cells_to_run (np.ndarray, optional): Array of cell indices to use (if not random). Defaults to None.
+        cell_weights (np.ndarray, optional): Weights for cell sampling. Defaults to None.
+        chrom_sizes (dict): Dictionary mapping chromosome names to their sizes and offsets.
+    """
         self.clip_soft = clip_soft
         self.neighbors = neighbors
         self.cell_weights = cell_weights
@@ -94,6 +139,21 @@ class onTheFlyDataset(Dataset):
         return neighbors_to_load
 
     def _process_cells(self, adata, cells, seq_coord, strand):
+        """
+        Processes RNA expression data for the given cells and sequence coordinates.
+
+        This function extracts RNA expression counts from the AnnData object, converts them to dense coverage
+        vectors, applies normalization, and returns the processed profiles.
+
+        Args:
+            adata (anndata.AnnData): AnnData object containing RNA expression data.
+            cells (list): List of cell indices.
+            seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+            strand (str): Strand of the gene ('plus' or 'minus').
+
+        Returns:
+            torch.Tensor: Processed RNA expression profiles for the given cells.
+        """
         m = adata.obsm["fragment_single"][cells]
         tensor = _sparse_to_coverage_rna(m=m, seq_coord=seq_coord, strand=strand)
         seq_cov = torch.nn.functional.avg_pool1d(tensor, kernel_size=32, stride=32) * 32
@@ -109,6 +169,16 @@ class onTheFlyDataset(Dataset):
         return seq_cov
 
     def _load_pseudobulk(self, neighbors, seq_coord):
+        """
+        Loads and processes pseudobulk RNA expression profiles for the given cells.
+
+        Args:
+            neighbors (list): List of cell indices.
+            seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Processed pseudobulk RNA expression profiles for the plus and minus strands.
+        """
         seq_cov_plus = self._process_cells(self.adata_plus, neighbors, seq_coord, strand="plus")
         seq_cov_minus = self._process_cells(self.adata_minus, neighbors, seq_coord, strand="minus")
         return seq_cov_plus, seq_cov_minus  #
@@ -153,6 +223,19 @@ class onTheFlyDataset(Dataset):
 
 class onTheFlyPseudobulkDataset(Dataset):
     def __init__(self, cell_types, ds, base_path, seqlevelstyle="UCSC", clip_soft = 384):
+        """
+    Dataset for loading pre-computed pseudobulk profiles from BigWig files.
+
+    This dataset loads pseudobulk RNA and ATAC-seq profiles from BigWig files for specified cell types, using 
+    genomic intervals provided by a `GenomeIntervalDataset`.
+
+    Attributes:
+        cell_types (list): List of cell type names for which pseudobulk profiles are available.
+        ds (GenomeIntervalDataset): Dataset providing genomic intervals and sequences.
+        base_path (str): Path to the directory containing the BigWig files.
+        seqlevelstyle (str, optional): Chromosome naming style ('UCSC' or 'ENSEMBL'). Defaults to 'UCSC'.
+        clip_soft (float): Soft clipping value for RNA coverage normalization.
+    """
         self.cell_types = cell_types
         self.genome_ds = ds
         self.base_path = base_path
@@ -163,6 +246,19 @@ class onTheFlyPseudobulkDataset(Dataset):
         return len(self.genome_ds)
 
     def _process_paths(self, paths, seq_coord):
+        """
+        Processes BigWig files to extract and normalize coverage values.
+
+        This function opens BigWig files, extracts coverage values for the specified genomic interval, and 
+        applies normalization and clipping.
+
+        Args:
+            paths (list): List of paths to BigWig files.
+            seq_coord (pd.Series): Pandas Series containing genomic interval information.
+
+        Returns:
+            torch.Tensor: Processed and normalized coverage values for the given interval.
+        """
         bigwigs = [pybigtools.open(file) for file in paths]
         cons_vals = [
             bw.values(
@@ -192,6 +288,16 @@ class onTheFlyPseudobulkDataset(Dataset):
         return seq_cov
 
     def _load_pseudobulk(self, neighbors, seq_coord):
+        """
+        Loads and processes pseudobulk profiles for the specified cell types.
+
+        Args:
+            neighbors (list): List of cell type names.
+            seq_coord (pd.Series): Pandas Series containing genomic interval information.
+
+        Returns:
+            torch.Tensor: Concatenated pseudobulk profiles for the given cell types.
+        """
         seq_cov = []
         for neighbor in neighbors:
             file_paths_plus = [f"{self.base_path}/plus.{neighbor}.bw"]
@@ -201,7 +307,11 @@ class onTheFlyPseudobulkDataset(Dataset):
         return torch.cat(seq_cov)
 
     def _reinit_fasta_reader(self):
-        """We do this because pyfaidX and torch multiprocessing sucks."""
+        """
+        Re-initializes the FastaInterval reader.
+
+        This is necessary because pyfaidx and torch multiprocessing are not compatible.
+        """
         self.genome_ds.fasta = FastaInterval(
             fasta_file=self.genome_ds.fasta.seqs.filename,
             context_length=self.genome_ds.fasta.context_length,
@@ -211,6 +321,15 @@ class onTheFlyPseudobulkDataset(Dataset):
         )
 
     def __getitem__(self, idx):
+        """
+        Gets the item at the given index.
+
+        Args:
+            idx (int): The index of the item.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: The input sequences, reverse complemented sequences, and the target pseudobulk profiles.
+        """
         self._reinit_fasta_reader()
         idx_gene = idx
         seq_coord = self.genome_ds.df[idx_gene]
@@ -237,6 +356,27 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         cell_weights: Optional[np.ndarray] = None,
         normalize_atac: bool = False,
     ) -> None:
+        """
+    Dataset for on-the-fly generation of multi-modal genomic profiles from sparse single-cell data.
+
+    This dataset processes sparse RNA and ATAC-seq data to generate dense coverage profiles for individual
+    cells or pseudobulk aggregates. It utilizes cell embeddings to guide cell selection and neighborhood 
+    aggregation.
+
+    Attributes:
+        adatas (dict): Dictionary mapping modality names (e.g., 'rna_plus', 'atac') to their corresponding AnnData objects.
+        neighbors (scipy.sparse.csr_matrix): Sparse matrix representing cell neighborhood relationships.
+        embedding (pd.DataFrame): DataFrame containing cell embeddings.
+        ds (GenomeIntervalDataset): Dataset providing genomic intervals and sequences.
+        clip_soft (float): Soft clipping value for RNA coverage normalization.
+        cell_sample_size (int, optional): Number of cells to sample per sequence. Defaults to 32.
+        get_targets (bool, optional): Whether to generate target profiles. Defaults to True.
+        random_cells (bool, optional): Whether to randomly sample cells. Defaults to True.
+        cells_to_run (np.ndarray, optional): Array of cell indices to use (if not random). Defaults to None.
+        cell_weights (np.ndarray, optional): Weights for cell sampling. Defaults to None.
+        normalize_atac (bool, optional): Whether to normalize ATAC-seq coverage. Defaults to False.
+        chrom_sizes (dict): Dictionary mapping chromosome names to their sizes and offsets.
+    """
         self.clip_soft = clip_soft
         self.neighbors = neighbors
         self.cell_weights = cell_weights
@@ -270,6 +410,21 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         return neighbors_to_load
 
     def _process_rna(self, adata, cell_indices, seq_coord, strand):
+        """
+        Processes RNA expression data for the given cells and sequence coordinates.
+
+        This function extracts RNA expression counts from the AnnData object, converts them to dense coverage
+        vectors, applies normalization, and returns the processed profiles.
+
+        Args:
+            adata (anndata.AnnData): AnnData object containing RNA expression data.
+            cell_indices (list): List of cell indices.
+            seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+            strand (str): Strand of the gene ('plus' or 'minus').
+
+        Returns:
+            torch.Tensor: Processed RNA expression profiles for the given cells.
+        """
         tensor = _sparse_to_coverage_rna(
             m=adata.obsm["fragment_single"][cell_indices], seq_coord=seq_coord, strand=strand
         )
@@ -286,6 +441,20 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         return seq_cov
 
     def _process_atac(self, adata, cell_indices, seq_coord):
+        """
+        Processes ATAC-seq data for the given cells and sequence coordinates.
+
+        This function extracts ATAC-seq insertion counts from the AnnData object, converts them to dense 
+        coverage vectors, applies normalization (if specified), and returns the processed profiles.
+
+        Args:
+            adata (anndata.AnnData): AnnData object containing ATAC-seq insertion data.
+            cell_indices (list): List of cell indices.
+            seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+
+        Returns:
+            torch.Tensor: Processed ATAC-seq profiles for the given cells.
+        """
         tensor = _sparse_to_coverage_atac(m=adata.obsm["insertion"][cell_indices], seq_coord=seq_coord)
         seq_cov = torch.nn.functional.avg_pool1d(tensor, kernel_size=32, stride=32) * 32
 
@@ -294,6 +463,16 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         return seq_cov
 
     def _load_pseudobulk(self, neighbors, seq_coord):
+        """
+        Loads and processes pseudobulk profiles for RNA and ATAC-seq data.
+
+        Args:
+            neighbors (list): List of cell indices to aggregate into a pseudobulk profile.
+            seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+
+        Returns:
+            torch.Tensor: Concatenated pseudobulk profiles for RNA and ATAC-seq data.
+        """
         # process all modalities
         seq_covs = []
         for modality, adata in self.adatas.items():
@@ -306,6 +485,11 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         return torch.cat(seq_covs)
 
     def _reinit_fasta_reader(self):
+        """
+        Re-initializes the FastaInterval reader.
+
+        This is necessary because pyfaidx and torch multiprocessing can have compatibility issues.
+        """
         self.genome_ds.fasta = FastaInterval(
             fasta_file=self.genome_ds.fasta.seqs.filename,
             context_length=self.genome_ds.fasta.context_length,
@@ -315,6 +499,19 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         )
 
     def __getitem__(self, idx):
+        """
+        Retrieves data for a given genomic interval.
+
+        This function retrieves the DNA sequence, processes RNA and ATAC-seq data for the selected cells and their
+        neighbors, and returns the input sequence, reverse complement, target profiles (if `get_targets` is True), 
+        and cell embeddings.
+
+        Args:
+            idx (int): Index of the genomic interval in the `GenomeIntervalDataset`.
+
+        Returns:
+            Tuple: A tuple containing the input sequence, reverse complement sequence, target profiles (optional), and cell embeddings.
+        """
         self._reinit_fasta_reader()
         if self.random_cells:
             idx_cells = np.random.choice(self.neighbors.shape[0], size=self.cell_sample_size, p=self.cell_weights)
@@ -346,6 +543,19 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
 
 class onTheFlyExonMultiomePseudobulkDataset(Dataset):
     def __init__(self, cell_types, ds, base_path, clip_soft, seqlevelstyle="UCSC"):
+        """
+    Dataset for loading pre-computed pseudobulk profiles from BigWig files for exon-level analysis.
+
+    This dataset loads pseudobulk RNA and ATAC-seq profiles from BigWig files for specified cell types. 
+    It focuses on exon-level regions, using genomic intervals provided by a `GenomeIntervalDataset`.
+
+    Attributes:
+        cell_types (list): List of cell type names for which pseudobulk profiles are available.
+        ds (GenomeIntervalDataset): Dataset providing genomic intervals and sequences.
+        base_path (str): Path to the directory containing the BigWig files.
+        clip_soft (float): Soft clipping value for RNA coverage normalization.
+        seqlevelstyle (str, optional): Chromosome naming style ('UCSC' or 'ENSEMBL'). Defaults to 'UCSC'.
+    """
         self.cell_types = cell_types
         self.genome_ds = ds
         self.base_path = base_path
@@ -356,6 +566,19 @@ class onTheFlyExonMultiomePseudobulkDataset(Dataset):
         return len(self.genome_ds)
 
     def _process_rna_paths(self, paths, seq_coord):
+        """
+        Processes BigWig files for RNA expression data to extract and normalize coverage values.
+
+        This function opens BigWig files, extracts RNA coverage values for the specified genomic interval,
+        applies normalization and clipping, and returns the processed values.
+
+        Args:
+            paths (list): List of paths to BigWig files containing RNA expression data.
+            seq_coord (pd.Series): Pandas Series containing genomic interval information.
+
+        Returns:
+            torch.Tensor: Processed and normalized RNA coverage values for the given interval.
+        """
         bigwigs = [pybigtools.open(file) for file in paths]
 
         cons_vals = [
@@ -378,6 +601,19 @@ class onTheFlyExonMultiomePseudobulkDataset(Dataset):
         return seq_cov
 
     def _process_atac_paths(self, paths, seq_coord):
+        """
+        Processes BigWig files for ATAC-seq data to extract and normalize coverage values.
+
+        This function opens BigWig files, extracts ATAC-seq coverage values for the specified genomic 
+        interval, applies normalization, and returns the processed values.
+
+        Args:
+            paths (list): List of paths to BigWig files containing ATAC-seq data.
+            seq_coord (pd.Series): Pandas Series containing genomic interval information.
+
+        Returns:
+            torch.Tensor: Processed and normalized ATAC-seq coverage values for the given interval.
+        """
         bigwigs = [pybigtools.open(file) for file in paths]
 
         cons_vals = [
@@ -390,6 +626,16 @@ class onTheFlyExonMultiomePseudobulkDataset(Dataset):
         return torch.clip(seq_cov, min_value, max_value)
 
     def _load_pseudobulk(self, cell_types, seq_coord):
+        """
+        Loads and processes pseudobulk profiles for RNA and ATAC-seq data for the given cell types.
+
+        Args:
+            cell_types (list): List of cell type names.
+            seq_coord (pd.Series): Pandas Series containing genomic interval information.
+
+        Returns:
+            torch.Tensor: Concatenated pseudobulk profiles for RNA and ATAC-seq data.
+        """
         seq_cov = []
         for cell_type in cell_types:
             file_paths_plus = [f"{self.base_path}/plus.{cell_type}.bw"]
@@ -410,6 +656,11 @@ class onTheFlyExonMultiomePseudobulkDataset(Dataset):
         )
 
     def __getitem__(self, idx):
+        """
+        Re-initializes the FastaInterval reader.
+
+        This is necessary because pyfaidx and torch multiprocessing can have compatibility issues.
+        """
         self._reinit_fasta_reader()
         idx_gene = idx
         seq_coord = self.genome_ds.df[idx_gene]
