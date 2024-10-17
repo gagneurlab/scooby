@@ -51,8 +51,8 @@ Training
 --------
 
 We offer a `train
-script <https://github.com/gagneurlab/scooby/blob/main/scripts/train.py>`__,
-which requires SNAPATAC2-preprocessed anndatas and embeddings. Training
+script for modeling scRNA-seq only <https://github.com/gagneurlab/scooby/blob/main/scripts/train_rna_only.py>`__ and a `script for multiome modeling <https://github.com/gagneurlab/scooby/blob/main/scripts/train_multiome.py>`__.
+Both require SNAPATAC2-preprocessed anndatas and embeddings. Training scooby
 takes 1-2 days on 8 NVIDIA A40 GPUs with 128GB RAM and 32 cores.
 
 Model architecture
