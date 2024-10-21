@@ -230,7 +230,7 @@ def evaluate(accelerator, csb, val_loader):
     csb.eval()
     output_list, target_list, pearsons_per_track = [], [], []
 
-    stop_idx = 0
+    stop_idx = 1
 
     for i, [inputs, rc_augs, targets,_,  cell_emb_idx] in tqdm.tqdm(enumerate(val_loader)):
         if i < (stop_idx):

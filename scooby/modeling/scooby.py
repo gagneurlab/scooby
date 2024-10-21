@@ -27,7 +27,7 @@ class Scooby(Borzoi):
         use_transform_borzoi_emb: Whether to use an additional transformation layer on Borzoi embeddings (default: False).
         cachesize: Size of the sequence embedding cache (default: 2).
     """
-        super(Scooby, self).__init__(config)
+        super().__init__(config)
         self.cell_emb_dim = cell_emb_dim
         self.cachesize = cachesize
         self.use_transform_borzoi_emb = use_transform_borzoi_emb
@@ -60,10 +60,25 @@ class Scooby(Borzoi):
             nn.init.zeros_(self.transform_borzoi_emb[-2].weight)
             nn.init.zeros_(self.transform_borzoi_emb[-2].bias)
         nn.init.zeros_(self.cell_state_to_conv[-1].bias)
+        self.cell_state_to_conv[-1].is_hf_initialized = True
         if self.num_learnable_cell_embs is not None:
             self.embedding = nn.Embedding(num_learnable_cell_embs, cell_emb_dim)
         self.sequences, self.last_embs = [], []
         del self.human_head
+
+
+    def _init_weights(self, module):
+        """ Initialize the weights """
+        if isinstance(module, (nn.Linear, nn.Embedding, nn.Conv1d)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=0.02)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, (nn.Linear, nn.Conv1d)) and module.bias is not None:
+            module.bias.data.zero_()
+
 
     def get_lora(self, lora_config = None, train = False): 
         """

@@ -82,7 +82,7 @@ def train(config):
     )
     scooby.get_lora(train=True)
     # parameters = add_weight_decay(scooby, lr = lr, weight_decay=wd)
-    optimizer = torch.optim.AdamW(scooby.parameters())
+    optimizer = torch.optim.AdamW(scooby.parameters(), weight_decay = wd)
 
     warmup_scheduler = LinearLR(optimizer, start_factor=0.0001, total_iters=warmup_steps)
     train_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.00, total_iters=num_steps - warmup_steps)
@@ -154,7 +154,6 @@ def train(config):
     # Training loop
     for epoch in range(40):
         for i, [inputs, rc_augs, targets, _, cell_emb_idx] in tqdm.tqdm(enumerate(training_loader)):
-            # print (cell_emb_idx)
             inputs = inputs.permute(0, 2, 1).to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
             for rc_aug_idx in rc_augs.nonzero():
