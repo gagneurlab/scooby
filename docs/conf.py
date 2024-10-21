@@ -44,14 +44,6 @@ html_theme_options = {
         "admonition-font-size": "var(--font-size-normal)",
         "admonition-title-font-size": "var(--font-size-normal)",
     },
-    "footer_icons": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/gagneurlab/scooby",
-            "html": "",
-            "class": "fab fa-github",
-        },
-    ],
 }
 
 
