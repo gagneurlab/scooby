@@ -9,7 +9,7 @@ import torch.nn.functional as F
 batch_conv = torch.vmap(F.conv1d, chunk_size = 1024)
 
 class Scooby(Borzoi):
-    def __init__(self, config, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, **params):
+    def __init__(self, config, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, num_learnable_cell_embs = None, **params):
         """
     Scooby model for predicting single-cell genomic profiles from DNA sequence.
 
@@ -34,6 +34,7 @@ class Scooby(Borzoi):
         self.n_tracks = n_tracks
         self.embedding_dim = embedding_dim
         self.disable_cache = disable_cache
+        self.num_learnable_cell_embs = num_learnable_cell_embs
         dropout_modules = [module for module in self.modules() if isinstance(module, torch.nn.Dropout)]
         batchnorm_modules = [module for module in self.modules() if isinstance(module, torch.nn.BatchNorm1d)]
         [module.eval() for module in dropout_modules] # disable dropout
@@ -59,10 +60,12 @@ class Scooby(Borzoi):
             nn.init.zeros_(self.transform_borzoi_emb[-2].weight)
             nn.init.zeros_(self.transform_borzoi_emb[-2].bias)
         nn.init.zeros_(self.cell_state_to_conv[-1].bias)
+        if self.num_learnable_cell_embs is not None:
+            self.embedding = nn.Embedding(num_learnable_cell_embs, cell_emb_dim)
         self.sequences, self.last_embs = [], []
         del self.human_head
 
-    def get_lora(self, lora_config, train): 
+    def get_lora(self, lora_config = None, train = False): 
         """
         Applies Low-Rank Adaptation (LoRA) to the model.
 
@@ -84,6 +87,9 @@ class Scooby(Borzoi):
                params.requires_grad = True
             if self.use_transform_borzoi_emb:
                 for params in self.base_model.transform_borzoi_emb.parameters():
+                   params.requires_grad = True
+            if self.num_learnable_cell_embs is not None:
+                for params in self.base_model.embedding.parameters():
                    params.requires_grad = True
             self.print_trainable_parameters()
             
@@ -141,7 +147,7 @@ class Scooby(Borzoi):
         x = self.final_joined_convs(x.permute(0, 2, 1))
         if self.use_transform_borzoi_emb:
             x = self.transform_borzoi_emb(x) 
-        x = x.float()
+        # x = x.float()
         if not self.training and not self.disable_cache:
             if len(self.sequences) == self.cachesize:
                 self.sequences, self.last_embs = [], []
@@ -201,7 +207,7 @@ class Scooby(Borzoi):
         out = F.softplus(out)
         return out.permute(0,2,1)
         
-    def forward(self, sequence, cell_emb):
+    def forward(self, sequence, cell_emb = None, cell_emb_idx = None):
         """
         Forward pass of the scooby model.
 
@@ -212,6 +218,8 @@ class Scooby(Borzoi):
         Returns:
             Tensor: Predicted profiles for each cell (batch_size, num_cells, seq_len, n_tracks).
         """
+        if self.num_learnable_cell_embs is not None:
+            cell_emb = self.embedding(cell_emb_idx)
         cell_emb_conv_weights,cell_emb_conv_biases = self.forward_cell_embs_only(cell_emb)
         out = self.forward_sequence_w_convs(sequence, cell_emb_conv_weights, cell_emb_conv_biases)
         return out

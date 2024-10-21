@@ -230,9 +230,9 @@ def evaluate(accelerator, csb, val_loader):
     csb.eval()
     output_list, target_list, pearsons_per_track = [], [], []
 
-    stop_idx = 2
+    stop_idx = 0
 
-    for i, [inputs, rc_augs, targets, cell_emb_idx] in tqdm.tqdm(enumerate(val_loader)):
+    for i, [inputs, rc_augs, targets,_,  cell_emb_idx] in tqdm.tqdm(enumerate(val_loader)):
         if i < (stop_idx):
             continue
         if i == (stop_idx + 1):
@@ -241,7 +241,7 @@ def evaluate(accelerator, csb, val_loader):
         target_list.append(targets.to(device, non_blocking=True))
         with torch.no_grad():
             with torch.autocast("cuda"):
-                output_list.append(csb(inputs, cell_emb_idx).detach())
+                output_list.append(csb(inputs, cell_emb_idx = cell_emb_idx).detach())
         break
     targets = torch.vstack(target_list).squeeze().numpy(force=True)  # [reindex].flatten(0,1).numpy(force =True)
     outputs = torch.vstack(output_list).squeeze().numpy(force=True)  # [reindex].flatten(0,1).numpy(force =True)

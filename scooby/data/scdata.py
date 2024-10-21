@@ -346,14 +346,15 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         self,
         adatas: dict,
         neighbors: scipy.sparse.csr_matrix,
-        embedding: pd.DataFrame,
         ds: GenomeIntervalDataset,
         clip_soft,
+        embedding: pd.DataFrame = None,
         cell_sample_size: int = 32,
         get_targets: bool = True,
         random_cells: bool = True,
         cells_to_run: Optional[np.ndarray] = None,
         cell_weights: Optional[np.ndarray] = None,
+        learnable_cell_embs: bool = False,
         normalize_atac: bool = False,
     ) -> None:
         """
@@ -383,6 +384,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         self.cells_to_run = cells_to_run
         self.embedding = embedding
         self.get_targets = get_targets
+        self.learnable_cell_embs = learnable_cell_embs
         self.random_cells = random_cells
         if not self.random_cells and not cells_to_run:
             self.cells_to_run = np.zeros(1, dtype=np.int64)
@@ -520,8 +522,10 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         idx_gene = idx
         seq_coord = self.genome_ds.df[idx_gene]
         inputs, _, rc_augs = self.genome_ds[idx_gene]
-        embeddings = torch.from_numpy(np.vstack(self.embedding.iloc[idx_cells]["embedding"].values))
-
+        if not self.learnable_cell_embs:
+            embeddings = torch.from_numpy(np.vstack(self.embedding.iloc[idx_cells]["embedding"].values))
+        else:
+            embeddings = [0]
         if self.get_targets:
             chrom_size = self.chrom_sizes[seq_coord["column_1"].item()]
             chrom_start = chrom_size["offset"]
@@ -537,8 +541,8 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
                 neighbors_to_load = self._get_neighbors_for_cell(cell_idx)
                 targets.append(self._load_pseudobulk(neighbors_to_load, genome_data))
             targets = torch.vstack(targets)
-            return inputs, rc_augs, targets.permute(1, 0), embeddings
-        return inputs, rc_augs, embeddings
+            return inputs, rc_augs, targets.permute(1, 0), embeddings, idx_cells
+        return inputs, rc_augs, embeddings, idx_cells
 
 
 class onTheFlyExonMultiomePseudobulkDataset(Dataset):

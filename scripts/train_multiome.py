@@ -56,14 +56,14 @@ def train(config):
 
     # Load data
     adatas = {
-        "rna_plus": read_backed(h5py.File(os.path.join(data_path, "scooby_training_data/snapatac_merged_plus.h5ad")), "fragment_single"),
-        "rna_minus": read_backed(h5py.File(os.path.join(data_path, "scooby_training_data/snapatac_merged_minus.h5ad")), "fragment_single"),
-        "atac": sc.read(os.path.join(data_path, "scooby_training_data/snapatac_merged_atac.h5ad")),
+        "rna_plus": read_backed(h5py.File(os.path.join(data_path, "snapatac_merged_fixed_plus.h5ad")), "fragment_single"),
+        "rna_minus": read_backed(h5py.File(os.path.join(data_path, "snapatac_merged_fixed_minus.h5ad")), "fragment_single"),
+        "atac": sc.read(os.path.join(data_path, "snapatac_merged_fixed_atac.h5ad")),
     }
 
-    neighbors = scipy.sparse.load_npz(f"{data_path}scooby_training_data/no_neighbors.npz")
-    embedding = pd.read_parquet(f"{data_path}scooby_training_data/embedding_no_val_genes_new.pq")
-    cell_weights = np.load(f"{data_path}scooby_training_data/cell_weights_no_normoblast.npy")
+    neighbors = scipy.sparse.load_npz(f"/s/project/QNA/scborzoi/neurips_bone_marrow/borzoi_training_data_fixed/no_neighbors.npz")
+    # embedding = pd.read_parquet(f"{data_path}scooby_training_data/embedding_no_val_genes_new.pq")
+    # cell_weights = np.load(f"{data_path}scooby_training_data/cell_weights_no_normoblast.npy")
 
     # Calculate training steps
     num_steps = (45_000 * num_epochs) // (batch_size)
@@ -78,13 +78,14 @@ def train(config):
         return_center_bins_only=True,
         disable_cache=True,
         use_transform_borzoi_emb=True,
+        num_learnable_cell_embs = adatas['rna_plus'].shape[0]
     )
     scooby.get_lora(train=True)
-    parameters = add_weight_decay(scooby, lr = lr, weight_decay=wd)
-    optimizer = torch.optim.AdamW(parameters)
+    # parameters = add_weight_decay(scooby, lr = lr, weight_decay=wd)
+    optimizer = torch.optim.AdamW(scooby.parameters())
 
-    warmup_scheduler = LinearLR(optimizer, start_factor=0.0000001, total_iters=warmup_steps, verbose=False)
-    train_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.00, total_iters=num_steps - warmup_steps, verbose=False)
+    warmup_scheduler = LinearLR(optimizer, start_factor=0.0001, total_iters=warmup_steps)
+    train_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.00, total_iters=num_steps - warmup_steps)
     scheduler = SequentialLR(optimizer, [warmup_scheduler, train_scheduler], [warmup_steps])
 
     # Create datasets and dataloaders
@@ -119,22 +120,22 @@ def train(config):
     otf_dataset = onTheFlyMultiomeDataset(
         adatas=adatas,
         neighbors=neighbors,
-        embedding=embedding,
         ds=ds,
         cell_sample_size=64,
         cell_weights=None,
         normalize_atac=True,
         clip_soft=5,
+        learnable_cell_embs = True,
     )
     val_dataset = onTheFlyMultiomeDataset(
         adatas=adatas,
         neighbors=neighbors,
-        embedding=embedding,
         ds=val_ds,
         cell_sample_size=32,
         cell_weights=None,
         normalize_atac=True,
         clip_soft=5,
+        learnable_cell_embs = True,
     )
 
     training_loader = DataLoader(otf_dataset, batch_size=batch_size, shuffle=True, num_workers=8)
@@ -152,7 +153,8 @@ def train(config):
 
     # Training loop
     for epoch in range(40):
-        for i, [inputs, rc_augs, targets, cell_emb_idx] in tqdm.tqdm(enumerate(training_loader)):
+        for i, [inputs, rc_augs, targets, _, cell_emb_idx] in tqdm.tqdm(enumerate(training_loader)):
+            # print (cell_emb_idx)
             inputs = inputs.permute(0, 2, 1).to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
             for rc_aug_idx in rc_augs.nonzero():
@@ -161,7 +163,7 @@ def train(config):
                 targets[rc_aug_idx] = fix_rev_comp_multiome(flipped_version)[0]
             optimizer.zero_grad()
             with torch.autocast("cuda"):
-                outputs = scooby(inputs, cell_emb_idx)
+                outputs = scooby(inputs, cell_emb_idx = cell_emb_idx)
                 loss = loss_fn(outputs, targets, total_weight=total_weight)
                 accelerator.log({"loss": loss})
             accelerator.backward(loss)

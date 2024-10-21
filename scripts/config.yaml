@@ -1,10 +1,10 @@
-output_dir: "path/to/output/directory"
+output_dir: "/s/project/QNA/borzoi_saved_models/"
 run_name: "scooby_run"
 
 data:
-  fasta_file: "hg38/genome_human.fa"
-  bed_file: "hg38/sequences.bed"
-  data_path: "/s/project/QNA/scborzoi/submission_data/"
+  fasta_file: "/s/project/QNA/genome_human.fa"
+  bed_file: "/s/project/QNA/borzoi_training_data/hg38/sequences.bed"
+  data_path: "/scratch/tmp/hingerl/neurips/"
   test_fold: 3
   val_fold: 4
   context_length: 524288

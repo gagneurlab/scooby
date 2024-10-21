@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='scooby',
-    version='0.0.1',
+    version='0.1',
     author='Johannes Hingerl, Laura Martens',
     author_email='',
     packages=find_packages(),
@@ -18,5 +18,6 @@ setup(
         "pybigtools == 0.1.1",
         "pyarrow >= 15.0.0",
         "intervaltree >= 3.1.0",
+        "wandb",
     ],
 )
