@@ -728,7 +728,7 @@ def add_weight_decay(model, lr, weight_decay=1e-5, skip_list=()):
             continue
         if len(param.shape) == 1 or name in skip_list:
             no_decay.append(param)
-        elif "cell_state_to_conv" in name:
+        elif "cell_state_to_conv" in name or "embedding" in name:
             high_lr.append(param)
             #accelerator.print ("setting to highlr", name)
         else:

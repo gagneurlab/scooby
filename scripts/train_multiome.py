@@ -39,8 +39,8 @@ def train(config):
     cell_emb_dim = config["model"]["cell_emb_dim"]
     num_tracks = config["model"]["num_tracks"]
     batch_size = config["training"]["batch_size"]
-    lr = config["training"]["lr"]
-    wd = config["training"]["wd"]
+    lr = float(config["training"]["lr"])
+    wd = float(config["training"]["wd"])
     clip_global_norm = config["training"]["clip_global_norm"]
     warmup_steps = config["training"]["warmup_steps"] * local_world_size
     num_epochs = config["training"]["num_epochs"] * local_world_size
@@ -77,12 +77,12 @@ def train(config):
         n_tracks=num_tracks,
         return_center_bins_only=True,
         disable_cache=True,
-        use_transform_borzoi_emb=True,
+        use_transform_borzoi_emb=False,
         num_learnable_cell_embs = adatas['rna_plus'].shape[0]
     )
     scooby.get_lora(train=True)
-    # parameters = add_weight_decay(scooby, lr = lr, weight_decay=wd)
-    optimizer = torch.optim.AdamW(scooby.parameters(), weight_decay = wd)
+    parameters = add_weight_decay(scooby, lr = lr, weight_decay = wd)
+    optimizer = torch.optim.AdamW(parameters)
 
     warmup_scheduler = LinearLR(optimizer, start_factor=0.0001, total_iters=warmup_steps)
     train_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.00, total_iters=num_steps - warmup_steps)
@@ -137,7 +137,6 @@ def train(config):
         clip_soft=5,
         learnable_cell_embs = True,
     )
-
     training_loader = DataLoader(otf_dataset, batch_size=batch_size, shuffle=True, num_workers=8)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
 

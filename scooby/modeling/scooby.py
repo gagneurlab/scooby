@@ -69,10 +69,13 @@ class Scooby(Borzoi):
 
     def _init_weights(self, module):
         """ Initialize the weights """
-        if isinstance(module, (nn.Linear, nn.Embedding, nn.Conv1d)):
+        if isinstance(module, (nn.Embedding)):
             # Slightly different from the TF version which uses truncated_normal for initialization
             # cf https://github.com/pytorch/pytorch/pull/5617
-            module.weight.data.normal_(mean=0.0, std=0.02)
+            module.weight.data.normal_(mean=0.0, std=0.05)
+        elif isinstance(module, (nn.Linear, nn.Conv1d)):
+            nn.init.xavier_normal_(module.weight)
+            module.weight.data.normal_(mean=0.0, std=0.05)
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
@@ -162,7 +165,6 @@ class Scooby(Borzoi):
         x = self.final_joined_convs(x.permute(0, 2, 1))
         if self.use_transform_borzoi_emb:
             x = self.transform_borzoi_emb(x) 
-        # x = x.float()
         if not self.training and not self.disable_cache:
             if len(self.sequences) == self.cachesize:
                 self.sequences, self.last_embs = [], []
@@ -191,7 +193,6 @@ class Scooby(Borzoi):
         out = F.softplus(out)
         return out.permute(0,2,1)
 
-    
     def forward_sequence_w_convs(self, sequence, cell_emb_conv_weights, cell_emb_conv_biases, bins_to_predict = None):
         """
         Processes DNA sequence, applies cell-state-specific convolutions, and caches results.
@@ -205,9 +206,11 @@ class Scooby(Borzoi):
         Returns:
             Tensor: Predicted profiles.
         """
+            
         if self.sequences and not self.training and not self.disable_cache:                
             for i,s in enumerate(self.sequences):
                 if torch.equal(sequence,s):
+                    cell_emb_conv_weights, cell_emb_conv_biases = cell_emb_conv_weights.to(self.last_embs[i].dtype), cell_emb_conv_biases.to(self.last_embs[i].dtype)
                     if bins_to_predict is not None: # unclear if this if is even needed or if self.last_embs[i][:,:,bins_to_predict] just also works when bins_to_predict is None 
                         out = batch_conv(self.last_embs[i][:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
                     else:
@@ -215,6 +218,7 @@ class Scooby(Borzoi):
                     out = F.softplus(out)
                     return out.permute(0,2,1)
         x = self.forward_seq_to_emb(sequence)
+        cell_emb_conv_weights, cell_emb_conv_biases = cell_emb_conv_weights.to(x.dtype), cell_emb_conv_biases.to(x.dtype)
         if bins_to_predict is not None:
             out = batch_conv(x[:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
         else:
