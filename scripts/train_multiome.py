@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from enformer_pytorch.data import GenomeIntervalDataset
 
 from scooby.modeling import Scooby
-from scooby.utils.utils import poisson_multinomial_torch, evaluate, fix_rev_comp_multiome, read_backed, add_weight_decay
+from scooby.utils.utils import poisson_multinomial_torch, evaluate, fix_rev_comp_multiome, read_backed, add_weight_decay, get_lora
 from scooby.data import onTheFlyMultiomeDataset
 import scanpy as sc
 import h5py
@@ -80,7 +80,7 @@ def train(config):
         use_transform_borzoi_emb=False,
         num_learnable_cell_embs = adatas['rna_plus'].shape[0]
     )
-    scooby.get_lora(train=True)
+    scooby = get_lora(scooby, train=True)
     parameters = add_weight_decay(scooby, lr = lr, weight_decay = wd)
     optimizer = torch.optim.AdamW(parameters)
 

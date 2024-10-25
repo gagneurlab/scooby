@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='scooby',
-    version='0.1',
+    version='0.1.1',
     author='Johannes Hingerl, Laura Martens',
     author_email='',
     packages=find_packages(),

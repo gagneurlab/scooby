@@ -72,49 +72,15 @@ class Scooby(Borzoi):
         if isinstance(module, (nn.Embedding)):
             # Slightly different from the TF version which uses truncated_normal for initialization
             # cf https://github.com/pytorch/pytorch/pull/5617
-            module.weight.data.normal_(mean=0.0, std=0.05)
+            module.weight.data.normal_(mean=0.0, std=1.0)
         elif isinstance(module, (nn.Linear, nn.Conv1d)):
             nn.init.xavier_normal_(module.weight)
-            module.weight.data.normal_(mean=0.0, std=0.05)
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
         if isinstance(module, (nn.Linear, nn.Conv1d)) and module.bias is not None:
             module.bias.data.zero_()
-
-
-    def get_lora(self, lora_config = None, train = False): 
-        """
-        Applies Low-Rank Adaptation (LoRA) to the model.
-
-        This function integrates LoRA modules into specified layers of the model, enabling parameter-efficient 
-        fine-tuning. If `train` is True, it sets the LoRA parameters and specific layers in the base model 
-        to be trainable. Otherwise, it freezes all parameters.
-
-        Args:
-            lora_config (LoraConfig, optional): Configuration for LoRA. If None, uses a default configuration.
-            train (bool): Whether the model is being prepared for training.
-        """
-        if lora_config is None:
-            lora_config = LoraConfig(
-                target_modules=r"(?!separable\d+).*conv_layer|.*to_q|.*to_v|transformer\.\d+\.1\.fn\.1|transformer\.\d+\.1\.fn\.4",
-            )
-        self = get_peft_model(self, lora_config) # get LoRA model
-        if train:
-            for params in self.base_model.cell_state_to_conv.parameters():
-               params.requires_grad = True
-            if self.use_transform_borzoi_emb:
-                for params in self.base_model.transform_borzoi_emb.parameters():
-                   params.requires_grad = True
-            if self.num_learnable_cell_embs is not None:
-                for params in self.base_model.embedding.parameters():
-                   params.requires_grad = True
-            self.print_trainable_parameters()
             
-        else:
-            for params in self.parameters():
-                params.requires_grad = False
-        
         
     def forward_cell_embs_only(self, cell_emb):
         """
@@ -207,7 +173,7 @@ class Scooby(Borzoi):
             Tensor: Predicted profiles.
         """
             
-        if self.sequences and not self.training and not self.disable_cache:                
+        if self.sequences and not self.training and not self.disable_cache:
             for i,s in enumerate(self.sequences):
                 if torch.equal(sequence,s):
                     cell_emb_conv_weights, cell_emb_conv_biases = cell_emb_conv_weights.to(self.last_embs[i].dtype), cell_emb_conv_biases.to(self.last_embs[i].dtype)
