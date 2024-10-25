@@ -7,6 +7,7 @@ from scipy import stats
 from matplotlib import pyplot as plt
 import anndata as ad
 from anndata.experimental import read_elem, sparse_dataset
+from peft import get_peft_model, LoraConfig
 
 
 def poisson_multinomial_torch(
@@ -230,9 +231,9 @@ def evaluate(accelerator, csb, val_loader):
     csb.eval()
     output_list, target_list, pearsons_per_track = [], [], []
 
-    stop_idx = 2
+    stop_idx = 1
 
-    for i, [inputs, rc_augs, targets, cell_emb_idx] in tqdm.tqdm(enumerate(val_loader)):
+    for i, [inputs, rc_augs, targets, cell_emb,  cell_emb_idx] in tqdm.tqdm(enumerate(val_loader)):
         if i < (stop_idx):
             continue
         if i == (stop_idx + 1):
@@ -241,7 +242,7 @@ def evaluate(accelerator, csb, val_loader):
         target_list.append(targets.to(device, non_blocking=True))
         with torch.no_grad():
             with torch.autocast("cuda"):
-                output_list.append(csb(inputs, cell_emb_idx).detach())
+                output_list.append(csb(inputs, cell_emb = cell_emb, cell_emb_idx = cell_emb_idx).detach())
         break
     targets = torch.vstack(target_list).squeeze().numpy(force=True)  # [reindex].flatten(0,1).numpy(force =True)
     outputs = torch.vstack(output_list).squeeze().numpy(force=True)  # [reindex].flatten(0,1).numpy(force =True)
@@ -728,13 +729,47 @@ def add_weight_decay(model, lr, weight_decay=1e-5, skip_list=()):
             continue
         if len(param.shape) == 1 or name in skip_list:
             no_decay.append(param)
-        elif "cell_state_to_conv" in name:
+        elif "cell_state_to_conv" in name or "embedding" in name:
             high_lr.append(param)
             #accelerator.print ("setting to highlr", name)
         else:
             decay.append(param)
     return [{'params': high_lr, 'weight_decay': weight_decay, 'lr' : 4e-4}, {'params': no_decay, 'weight_decay': 0., 'lr' : lr}, {'params': decay, 'weight_decay': weight_decay, 'lr' : lr}]
 
+
+
+def get_lora(model, lora_config = None, train = False): 
+    """
+    Applies Low-Rank Adaptation (LoRA) to the model.
+
+    This function integrates LoRA modules into specified layers of the model, enabling parameter-efficient 
+    fine-tuning. If `train` is True, it sets the LoRA parameters and specific layers in the base model 
+    to be trainable. Otherwise, it freezes all parameters.
+
+    Args:
+        lora_config (LoraConfig, optional): Configuration for LoRA. If None, uses a default configuration.
+        train (bool): Whether the model is being prepared for training.
+    """
+    if lora_config is None:
+        lora_config = LoraConfig(
+            target_modules=r"(?!separable\d+).*conv_layer|.*to_q|.*to_v|transformer\.\d+\.1\.fn\.1|transformer\.\d+\.1\.fn\.4",
+        )
+    model = get_peft_model(model, lora_config) # get LoRA model
+    if train:
+        for params in model.base_model.cell_state_to_conv.parameters():
+           params.requires_grad = True
+        if model.use_transform_borzoi_emb:
+            for params in model.base_model.transform_borzoi_emb.parameters():
+               params.requires_grad = True
+        if model.num_learnable_cell_embs is not None:
+            for params in model.base_model.embedding.parameters():
+               params.requires_grad = True
+        model.print_trainable_parameters()
+        
+    else:
+        for params in model.parameters():
+            params.requires_grad = False
+    return model
 
 
 import matplotlib as mpl

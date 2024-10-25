@@ -9,7 +9,7 @@ import torch.nn.functional as F
 batch_conv = torch.vmap(F.conv1d, chunk_size = 1024)
 
 class Scooby(Borzoi):
-    def __init__(self, config, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, **params):
+    def __init__(self, config, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, num_learnable_cell_embs = None, **params):
         """
     Scooby model for predicting single-cell genomic profiles from DNA sequence.
 
@@ -27,13 +27,14 @@ class Scooby(Borzoi):
         use_transform_borzoi_emb: Whether to use an additional transformation layer on Borzoi embeddings (default: False).
         cachesize: Size of the sequence embedding cache (default: 2).
     """
-        super(Scooby, self).__init__(config)
+        super().__init__(config)
         self.cell_emb_dim = cell_emb_dim
         self.cachesize = cachesize
         self.use_transform_borzoi_emb = use_transform_borzoi_emb
         self.n_tracks = n_tracks
         self.embedding_dim = embedding_dim
         self.disable_cache = disable_cache
+        self.num_learnable_cell_embs = num_learnable_cell_embs
         dropout_modules = [module for module in self.modules() if isinstance(module, torch.nn.Dropout)]
         batchnorm_modules = [module for module in self.modules() if isinstance(module, torch.nn.BatchNorm1d)]
         [module.eval() for module in dropout_modules] # disable dropout
@@ -59,38 +60,27 @@ class Scooby(Borzoi):
             nn.init.zeros_(self.transform_borzoi_emb[-2].weight)
             nn.init.zeros_(self.transform_borzoi_emb[-2].bias)
         nn.init.zeros_(self.cell_state_to_conv[-1].bias)
+        self.cell_state_to_conv[-1].is_hf_initialized = True
+        if self.num_learnable_cell_embs is not None:
+            self.embedding = nn.Embedding(num_learnable_cell_embs, cell_emb_dim)
         self.sequences, self.last_embs = [], []
         del self.human_head
 
-    def get_lora(self, lora_config, train): 
-        """
-        Applies Low-Rank Adaptation (LoRA) to the model.
 
-        This function integrates LoRA modules into specified layers of the model, enabling parameter-efficient 
-        fine-tuning. If `train` is True, it sets the LoRA parameters and specific layers in the base model 
-        to be trainable. Otherwise, it freezes all parameters.
-
-        Args:
-            lora_config (LoraConfig, optional): Configuration for LoRA. If None, uses a default configuration.
-            train (bool): Whether the model is being prepared for training.
-        """
-        if lora_config is None:
-            lora_config = LoraConfig(
-                target_modules=r"(?!separable\d+).*conv_layer|.*to_q|.*to_v|transformer\.\d+\.1\.fn\.1|transformer\.\d+\.1\.fn\.4",
-            )
-        self = get_peft_model(self, lora_config) # get LoRA model
-        if train:
-            for params in self.base_model.cell_state_to_conv.parameters():
-               params.requires_grad = True
-            if self.use_transform_borzoi_emb:
-                for params in self.base_model.transform_borzoi_emb.parameters():
-                   params.requires_grad = True
-            self.print_trainable_parameters()
+    def _init_weights(self, module):
+        """ Initialize the weights """
+        if isinstance(module, (nn.Embedding)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=1.0)
+        elif isinstance(module, (nn.Linear, nn.Conv1d)):
+            nn.init.xavier_normal_(module.weight)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, (nn.Linear, nn.Conv1d)) and module.bias is not None:
+            module.bias.data.zero_()
             
-        else:
-            for params in self.parameters():
-                params.requires_grad = False
-        
         
     def forward_cell_embs_only(self, cell_emb):
         """
@@ -141,7 +131,6 @@ class Scooby(Borzoi):
         x = self.final_joined_convs(x.permute(0, 2, 1))
         if self.use_transform_borzoi_emb:
             x = self.transform_borzoi_emb(x) 
-        x = x.float()
         if not self.training and not self.disable_cache:
             if len(self.sequences) == self.cachesize:
                 self.sequences, self.last_embs = [], []
@@ -170,7 +159,6 @@ class Scooby(Borzoi):
         out = F.softplus(out)
         return out.permute(0,2,1)
 
-    
     def forward_sequence_w_convs(self, sequence, cell_emb_conv_weights, cell_emb_conv_biases, bins_to_predict = None):
         """
         Processes DNA sequence, applies cell-state-specific convolutions, and caches results.
@@ -184,9 +172,11 @@ class Scooby(Borzoi):
         Returns:
             Tensor: Predicted profiles.
         """
-        if self.sequences and not self.training and not self.disable_cache:                
+            
+        if self.sequences and not self.training and not self.disable_cache:
             for i,s in enumerate(self.sequences):
                 if torch.equal(sequence,s):
+                    cell_emb_conv_weights, cell_emb_conv_biases = cell_emb_conv_weights.to(self.last_embs[i].dtype), cell_emb_conv_biases.to(self.last_embs[i].dtype)
                     if bins_to_predict is not None: # unclear if this if is even needed or if self.last_embs[i][:,:,bins_to_predict] just also works when bins_to_predict is None 
                         out = batch_conv(self.last_embs[i][:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
                     else:
@@ -194,6 +184,7 @@ class Scooby(Borzoi):
                     out = F.softplus(out)
                     return out.permute(0,2,1)
         x = self.forward_seq_to_emb(sequence)
+        cell_emb_conv_weights, cell_emb_conv_biases = cell_emb_conv_weights.to(x.dtype), cell_emb_conv_biases.to(x.dtype)
         if bins_to_predict is not None:
             out = batch_conv(x[:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
         else:
@@ -201,7 +192,7 @@ class Scooby(Borzoi):
         out = F.softplus(out)
         return out.permute(0,2,1)
         
-    def forward(self, sequence, cell_emb):
+    def forward(self, sequence, cell_emb = None, cell_emb_idx = None):
         """
         Forward pass of the scooby model.
 
@@ -212,6 +203,8 @@ class Scooby(Borzoi):
         Returns:
             Tensor: Predicted profiles for each cell (batch_size, num_cells, seq_len, n_tracks).
         """
+        if self.num_learnable_cell_embs is not None:
+            cell_emb = self.embedding(cell_emb_idx)
         cell_emb_conv_weights,cell_emb_conv_biases = self.forward_cell_embs_only(cell_emb)
         out = self.forward_sequence_w_convs(sequence, cell_emb_conv_weights, cell_emb_conv_biases)
         return out
