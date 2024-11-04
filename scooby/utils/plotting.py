@@ -140,35 +140,3 @@ def plot_tracks(tracks, interval, height=1.5, color_map={}, fig_title=None, save
         plt.savefig(save_name)
 
     return fig, axes
-
-
-def region_to_bin(region_starts, region_ends, seq_start, seq_len, model_stride, sliced=False):
-    region_slice = []
-
-    for region_start, region_end in tuple(zip(region_starts, region_ends)):
-        # clip left boundaries
-        region_seq_start = max(0, region_start - seq_start)
-        region_seq_end = max(0, region_end - seq_start)
-
-        # requires >50% overlap
-        slice_start = int(np.round(region_seq_start / model_stride))
-        slice_end = int(np.round(region_seq_end / model_stride))
-
-        # clip right boundaries
-        slice_max = int(seq_len / model_stride)
-        slice_start = min(slice_start, slice_max)
-        slice_end = min(slice_end, slice_max)
-
-        if not sliced:
-            region_slice.append((slice_start, slice_end))
-        else:
-            region_slice.append(np.array(range(slice_start, slice_end)))
-    return region_slice
-
-
-def get_regions(region, annotation):
-    region.columns = ["Chromosome", "Start", "End", "Gene Name", "Strand"]
-    region = pr.PyRanges(region)
-    region_peaks = annotation.overlap(region).df
-    region_peaks = region_to_bin(region_peaks.Start, region_peaks.End, region.Start.item(), 6144 * 32, 32)
-    return region_peaks
