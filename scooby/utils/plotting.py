@@ -17,7 +17,7 @@ def plot_coverage(ax, interval, y, title, ylim, color_map):
     )
     ax.set_title(title)
     sns.despine(top=True, right=True, bottom=True)
-    ax.set_ylim(0, ylim)
+    ax.set_ylim(ylim)
     ax.set_xlim(interval)
 
 
@@ -44,7 +44,7 @@ def plot_line(ax, interval, y, title, ylim):
     )
     ax.set_title(title)
     sns.despine(top=True, right=True, bottom=True)
-    # ax.set_ylim(0,ylim)
+    ax.set_ylim(ylim)
 
 def add_heatmap_to_axes(out, pos, values, color, title, vmax=  None):
     vmax = values.max() * 0.001 if vmax is None else vmax
