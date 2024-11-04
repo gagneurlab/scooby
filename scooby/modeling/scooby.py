@@ -27,7 +27,7 @@ class Scooby(Borzoi):
         use_transform_borzoi_emb: Whether to use an additional transformation layer on Borzoi embeddings (default: False).
         cachesize: Size of the sequence embedding cache (default: 2).
     """
-        super(Scooby, self).__init__(config)
+        super().__init__(config)
         self.cell_emb_dim = cell_emb_dim
         self.cachesize = cachesize
         self.use_transform_borzoi_emb = use_transform_borzoi_emb
@@ -62,34 +62,20 @@ class Scooby(Borzoi):
         self.sequences, self.last_embs = [], []
         del self.human_head
 
-    def get_lora(self, lora_config, train): 
-        """
-        Applies Low-Rank Adaptation (LoRA) to the model.
 
-        This function integrates LoRA modules into specified layers of the model, enabling parameter-efficient 
-        fine-tuning. If `train` is True, it sets the LoRA parameters and specific layers in the base model 
-        to be trainable. Otherwise, it freezes all parameters.
-
-        Args:
-            lora_config (LoraConfig, optional): Configuration for LoRA. If None, uses a default configuration.
-            train (bool): Whether the model is being prepared for training.
-        """
-        if lora_config is None:
-            lora_config = LoraConfig(
-                target_modules=r"(?!separable\d+).*conv_layer|.*to_q|.*to_v|transformer\.\d+\.1\.fn\.1|transformer\.\d+\.1\.fn\.4",
-            )
-        self = get_peft_model(self, lora_config) # get LoRA model
-        if train:
-            for params in self.base_model.cell_state_to_conv.parameters():
-               params.requires_grad = True
-            if self.use_transform_borzoi_emb:
-                for params in self.base_model.transform_borzoi_emb.parameters():
-                   params.requires_grad = True
-            self.print_trainable_parameters()
-            
-        else:
-            for params in self.parameters():
-                params.requires_grad = False
+    def _init_weights(self, module):
+        """ Initialize the weights """
+        if isinstance(module, (nn.Embedding)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=1.0)
+        elif isinstance(module, (nn.Linear, nn.Conv1d)):
+            nn.init.xavier_normal_(module.weight)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, (nn.Linear, nn.Conv1d)) and module.bias is not None:
+            module.bias.data.zero_()
         
         
     def forward_cell_embs_only(self, cell_emb):
@@ -141,7 +127,6 @@ class Scooby(Borzoi):
         x = self.final_joined_convs(x.permute(0, 2, 1))
         if self.use_transform_borzoi_emb:
             x = self.transform_borzoi_emb(x) 
-        x = x.float()
         if not self.training and not self.disable_cache:
             if len(self.sequences) == self.cachesize:
                 self.sequences, self.last_embs = [], []
@@ -187,6 +172,7 @@ class Scooby(Borzoi):
         if self.sequences and not self.training and not self.disable_cache:                
             for i,s in enumerate(self.sequences):
                 if torch.equal(sequence,s):
+                    cell_emb_conv_weights, cell_emb_conv_biases = cell_emb_conv_weights.to(self.last_embs[i].dtype), cell_emb_conv_biases.to(self.last_embs[i].dtype)
                     if bins_to_predict is not None: # unclear if this if is even needed or if self.last_embs[i][:,:,bins_to_predict] just also works when bins_to_predict is None 
                         out = batch_conv(self.last_embs[i][:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
                     else:
@@ -194,6 +180,7 @@ class Scooby(Borzoi):
                     out = F.softplus(out)
                     return out.permute(0,2,1)
         x = self.forward_seq_to_emb(sequence)
+        cell_emb_conv_weights, cell_emb_conv_biases = cell_emb_conv_weights.to(x.dtype), cell_emb_conv_biases.to(x.dtype)
         if bins_to_predict is not None:
             out = batch_conv(x[:,:,bins_to_predict], cell_emb_conv_weights, cell_emb_conv_biases)
         else:

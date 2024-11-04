@@ -7,7 +7,7 @@ from scipy import stats
 from matplotlib import pyplot as plt
 import anndata as ad
 from anndata.experimental import read_elem, sparse_dataset
-
+from peft import get_peft_model, LoraConfig
 
 def poisson_multinomial_torch(
     y_pred,
@@ -734,6 +734,34 @@ def add_weight_decay(model, lr, weight_decay=1e-5, skip_list=()):
         else:
             decay.append(param)
     return [{'params': high_lr, 'weight_decay': weight_decay, 'lr' : 4e-4}, {'params': no_decay, 'weight_decay': 0., 'lr' : lr}, {'params': decay, 'weight_decay': weight_decay, 'lr' : lr}]
+
+def get_lora(model, lora_config = None, train = False): 
+    """
+    Applies Low-Rank Adaptation (LoRA) to the model.
+    This function integrates LoRA modules into specified layers of the model, enabling parameter-efficient 
+    fine-tuning. If `train` is True, it sets the LoRA parameters and specific layers in the base model 
+    to be trainable. Otherwise, it freezes all parameters.
+    Args:
+        lora_config (LoraConfig, optional): Configuration for LoRA. If None, uses a default configuration.
+        train (bool): Whether the model is being prepared for training.
+    """
+    if lora_config is None:
+        lora_config = LoraConfig(
+            target_modules=r"(?!separable\d+).*conv_layer|.*to_q|.*to_v|transformer\.\d+\.1\.fn\.1|transformer\.\d+\.1\.fn\.4",
+        )
+    model = get_peft_model(model, lora_config) # get LoRA model
+    if train:
+        for params in model.base_model.cell_state_to_conv.parameters():
+           params.requires_grad = True
+        if model.use_transform_borzoi_emb:
+            for params in model.base_model.transform_borzoi_emb.parameters():
+               params.requires_grad = True
+        model.print_trainable_parameters()
+
+    else:
+        for params in model.parameters():
+            params.requires_grad = False
+    return model
 
 
 

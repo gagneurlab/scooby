@@ -17,4 +17,6 @@ Scooby is the first model to predict scRNA-seq coverage and scATAC-seq insertion
 
    readme_link.rst
    installation.rst
+   training.rst
    example_notebooks.rst
+

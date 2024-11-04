@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from enformer_pytorch.data import GenomeIntervalDataset
 
 from scooby.modeling import Scooby
-from scooby.utils.utils import poisson_multinomial_torch, evaluate, fix_rev_comp2, read_backed, add_weight_decay
+from scooby.utils.utils import poisson_multinomial_torch, evaluate, fix_rev_comp2, read_backed, add_weight_decay, get_lora
 from scooby.data import onTheFlyDataset
 import scanpy as sc
 import h5py
@@ -33,14 +33,12 @@ def train(config):
     # Extract configuration parameters
     output_dir = config["output_dir"]
     run_name = config["run_name"]
-    fasta_file = config["data"]["fasta_file"]
-    bed_file = config["data"]["bed_file"]
     data_path = config["data"]["data_path"]
     cell_emb_dim = config["model"]["cell_emb_dim"]
     num_tracks = config["model"]["num_tracks"]
     batch_size = config["training"]["batch_size"]
-    lr = config["training"]["lr"]
-    wd = config["training"]["wd"]
+    lr = float(config["training"]["lr"])
+    wd = float(config["training"]["wd"])
     clip_global_norm = config["training"]["clip_global_norm"]
     warmup_steps = config["training"]["warmup_steps"] * local_world_size
     num_epochs = config["training"]["num_epochs"] * local_world_size
@@ -60,9 +58,12 @@ def train(config):
         "rna_minus": read_backed(h5py.File(os.path.join(data_path, "scooby_training_data/snapatac_merged_minus.h5ad")), "fragment_single"),
     }
 
+    # we have an option to train with targets pseudobulked across neighbors, but we train without neighbors, true single cell
     neighbors = scipy.sparse.load_npz(f"{data_path}scooby_training_data/no_neighbors.npz")
     embedding = pd.read_parquet(f"{data_path}scooby_training_data/embedding_no_val_genes_new.pq")
-    cell_weights = np.load(f"{data_path}scooby_training_data/cell_weights_no_normoblast.npy")
+
+    # cell weights can be used to put more weight on some cells or just ignore some cell types altogether
+    # cell_weights = np.load(f"{data_path}scooby_training_data/cell_weights_no_normoblast.npy")
 
     # Calculate training steps
     num_steps = (45_000 * num_epochs) // (batch_size)
@@ -78,8 +79,8 @@ def train(config):
         disable_cache=True,
         use_transform_borzoi_emb=True,
     )
-    scooby.get_lora(train=True)
-    parameters = add_weight_decay(scooby, lr = lr, weight_decay=wd)
+    scooby = get_lora(scooby, train=True)
+    parameters = add_weight_decay(scooby, lr = lr, weight_decay = wd)
     optimizer = torch.optim.AdamW(parameters)
 
     warmup_scheduler = LinearLR(optimizer, start_factor=0.0000001, total_iters=warmup_steps, verbose=False)
@@ -89,8 +90,8 @@ def train(config):
     # Create datasets and dataloaders
     filter_train = lambda df: df.filter((pl.col("column_4") != f"fold{test_fold}") & (pl.col("column_4") != f"fold{val_fold}"))
     ds = GenomeIntervalDataset(
-        bed_file=bed_file,
-        fasta_file=fasta_file,
+        bed_file=os.path.join(data_path, "scooby_training_data/sequences.bed"),
+        fasta_file=os.path.join(data_path, "scooby_training_data/genome_human.fa"),
         filter_df_fn=filter_train,
         return_seq_indices=False,
         shift_augs=shift_augs,
@@ -102,8 +103,8 @@ def train(config):
 
     filter_val = lambda df: df.filter((pl.col("column_4") == f"fold{val_fold}"))
     val_ds = GenomeIntervalDataset(
-        bed_file=bed_file,
-        fasta_file=fasta_file,
+        bed_file=os.path.join(data_path, "scooby_training_data/sequences.bed"),
+        fasta_file=os.path.join(data_path, "scooby_training_data/genome_human.fa"),
         filter_df_fn=filter_val,
         return_seq_indices=False,
         shift_augs=(0, 0),
@@ -123,7 +124,6 @@ def train(config):
         ds=ds,
         cell_sample_size=64,
         cell_weights=None,
-        normalize_atac=True,
         clip_soft=5,
     )
     val_dataset = onTheFlyDataset(
@@ -134,7 +134,6 @@ def train(config):
         ds=val_ds,
         cell_sample_size=32,
         cell_weights=None,
-        normalize_atac=True,
         clip_soft=5,
     )
 
@@ -152,7 +151,7 @@ def train(config):
     loss_fn = poisson_multinomial_torch
 
     # Training loop
-    for epoch in range(40):
+    for epoch in range(num_epochs):
         for i, [inputs, rc_augs, targets, cell_emb_idx] in tqdm.tqdm(enumerate(training_loader)):
             inputs = inputs.permute(0, 2, 1).to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
@@ -171,7 +170,7 @@ def train(config):
             optimizer.step()
             scheduler.step()
             if i % eval_every_n == 0:
-                evaluate(accelerator, scooby, val_loader)
+                # evaluate(accelerator, scooby, val_loader) # currently only supported for multiome
                 scooby.train()
             if (i % 1000 == 0 and epoch != 0) or (i % 2000 == 0 and epoch == 0 and i != 0):
                 accelerator.save_state(output_dir=f"{output_dir}/scooby_epoch_{epoch}_{i}_{run_name}")
@@ -180,7 +179,7 @@ def train(config):
 
 if __name__ == "__main__":
     # Load configuration from YAML file
-    with open("config.yaml", "r") as f:
+    with open("config_rna_only.yaml", "r") as f:
         config = yaml.safe_load(f)
 
     # Train the model

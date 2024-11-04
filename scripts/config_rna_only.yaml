@@ -1,9 +1,7 @@
-output_dir: "path/to/output/directory"
+output_dir: "/tmp/"
 run_name: "scooby_run"
 
 data:
-  fasta_file: "hg38/genome_human.fa"
-  bed_file: "hg38/sequences.bed"
   data_path: "/s/project/QNA/scborzoi/submission_data/"
   test_fold: 3
   val_fold: 4
@@ -13,7 +11,7 @@ data:
 
 model:
   cell_emb_dim: 14
-  num_tracks: 3
+  num_tracks: 2
   pretrained_model: "johahi/borzoi-replicate-0"
 
 training:
@@ -22,6 +20,6 @@ training:
   wd: 1e-6
   clip_global_norm: 1.0
   warmup_steps: 1000
-  num_epochs: 4
+  num_epochs: 40
   eval_every_n: 256
   total_weight: 0.2

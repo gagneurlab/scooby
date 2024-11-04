@@ -8,4 +8,5 @@ Data preparation
    :maxdepth: 2
 
    notebooks/data_loading_example.ipynb
+   notebooks/Evaluate_Model.ipynb
 
