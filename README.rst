@@ -42,8 +42,7 @@ Scooby package installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -  ``pip install git+https://github.com/gagneurlab/scooby.git``
--  Download file contents from the Zenodo
-   `repo <https://zenodo.org/records/13891693>`__
+-  Download file contents from the Zenodo `repo <https://zenodo.org/records/14051793>`__
 -  Use examples from the scooby reproducibility
    `repository <https://github.com/gagneurlab/scooby_reproducibility>`__
 
