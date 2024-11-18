@@ -32,7 +32,7 @@ Installation instructions
 Prerequisites
 ~~~~~~~~~~~~~
 
-scooby uses a a custom version of SnapATAC2, which we built using rust:
+scooby uses a a custom version of SnapATAC2, which can be installed using ``pip``:
 
 -  Install rust with
    ``curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh``
