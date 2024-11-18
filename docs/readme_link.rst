@@ -25,11 +25,12 @@ Installation instructions
 Prerequisites
 ~~~~~~~~~~~~~
 
-scooby uses a a custom version of SnapATAC2, which we built using rust:
+scooby uses a a custom version of SnapATAC2, which can be installed with ``pip``. 
 
--  Install rust with
-   ``curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh``
--  ``pip install git+https://github.com/lauradmartens/SnapATAC2.git#egg=snapatac2&subdirectory=snapatac2-python``
+.. note::
+   This is best installed in a separate environment due to numpy version conflicts with scooby.
+
+-  ``pip install snapatac2-scooby``
 
 Scooby package installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
