@@ -32,10 +32,7 @@ Installation instructions
 Prerequisites
 ~~~~~~~~~~~~~
 
-scooby uses a a custom version of SnapATAC2, which can be installed with ``pip``. 
-
-.. note::
-   This is best installed in a separate environment due to numpy version conflicts with scooby
+scooby uses a a custom version of SnapATAC2, which can be installed with ``pip``. This is best installed in a separate environment due to numpy version conflicts with scooby.
 
 -  ``pip install snapatac2-scooby``
 
