@@ -33,7 +33,14 @@ def train(config):
     # Extract configuration parameters
     output_dir = config["output_dir"]
     run_name = config["run_name"]
-    data_path = config["data"]["data_path"]
+    
+    rna_plus = config["data"]["rna_plus_path"]
+    rna_minus = config["data"]["rna_minus_path"]
+    embedding_path = config["data"]["embedding_path"]
+    neighbors_path = config["data"]["neighbors_path"]
+    sequences_path = config["data"]["sequences_path"]
+    genome_path = config["data"]["genome_path"]
+    
     cell_emb_dim = config["model"]["cell_emb_dim"]
     num_tracks = config["model"]["num_tracks"]
     batch_size = config["training"]["batch_size"]
@@ -54,13 +61,13 @@ def train(config):
 
     # Load data
     adatas = {
-        "rna_plus": read_backed(h5py.File(os.path.join(data_path, "scooby_training_data/snapatac_merged_plus.h5ad")), "fragment_single"),
-        "rna_minus": read_backed(h5py.File(os.path.join(data_path, "scooby_training_data/snapatac_merged_minus.h5ad")), "fragment_single"),
+        "rna_plus": read_backed(h5py.File(rna_plus), "fragment_single"),
+        "rna_minus": read_backed(h5py.File(rna_minus), "fragment_single"),
     }
 
     # we have an option to train with targets pseudobulked across neighbors, but we train without neighbors, true single cell
-    neighbors = scipy.sparse.load_npz(f"{data_path}scooby_training_data/no_neighbors.npz")
-    embedding = pd.read_parquet(f"{data_path}scooby_training_data/embedding_no_val_genes_new.pq")
+    neighbors = scipy.sparse.load_npz(neighbors_path)
+    embedding = pd.read_parquet(embedding_path)
 
     # cell weights can be used to put more weight on some cells or just ignore some cell types altogether
     # cell_weights = np.load(f"{data_path}scooby_training_data/cell_weights_no_normoblast.npy")
@@ -90,8 +97,8 @@ def train(config):
     # Create datasets and dataloaders
     filter_train = lambda df: df.filter((pl.col("column_4") != f"fold{test_fold}") & (pl.col("column_4") != f"fold{val_fold}"))
     ds = GenomeIntervalDataset(
-        bed_file=os.path.join(data_path, "scooby_training_data/sequences.bed"),
-        fasta_file=os.path.join(data_path, "scooby_training_data/genome_human.fa"),
+        bed_file=sequences_path,
+        fasta_file=genome_path,
         filter_df_fn=filter_train,
         return_seq_indices=False,
         shift_augs=shift_augs,
@@ -103,8 +110,8 @@ def train(config):
 
     filter_val = lambda df: df.filter((pl.col("column_4") == f"fold{val_fold}"))
     val_ds = GenomeIntervalDataset(
-        bed_file=os.path.join(data_path, "scooby_training_data/sequences.bed"),
-        fasta_file=os.path.join(data_path, "scooby_training_data/genome_human.fa"),
+        bed_file=sequences_path,
+        fasta_file=genome_path,
         filter_df_fn=filter_val,
         return_seq_indices=False,
         shift_augs=(0, 0),

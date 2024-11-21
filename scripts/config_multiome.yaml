@@ -2,7 +2,13 @@ output_dir: "/tmp/"
 run_name: "scooby_run"
 
 data:
-  data_path: "/s/project/QNA/scborzoi/submission_data/"
+  rna_plus_path: "/s/project/QNA/scborzoi/submission_data/scooby_training_data/snapatac_merged_plus.h5ad"
+  rna_minus_path: "/s/project/QNA/scborzoi/submission_data/scooby_training_data/snapatac_merged_minus.h5ad"
+  atac_path: "/s/project/QNA/scborzoi/submission_data/scooby_training_data/snapatac_merged_atac.h5ad"
+  embedding_path: "/s/project/QNA/scborzoi/submission_data/scooby_training_data/embedding_no_val_genes_new.pq"
+  neighbors_path: "/s/project/QNA/scborzoi/submission_data/scooby_training_data/no_neighbors.npz"
+  sequences_path: "/s/project/QNA/scborzoi/submission_data/scooby_training_data/sequences.bed"
+  genome_path: "/s/project/QNA/scborzoi/submission_data/scooby_training_data/genome_human.fa"
   test_fold: 3
   val_fold: 4
   context_length: 524288
