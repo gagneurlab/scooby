@@ -708,7 +708,7 @@ def read_backed(group, key):
     """
     return ad.AnnData(
         sparse_dataset(group["X"]),
-        obsm={'fragment_single': sparse_dataset(group["obsm"][key])},
+        obsm={key: sparse_dataset(group["obsm"][key])},
         **{
             k: read_elem(group[k]) if k in group else {}
             for k in ["layers", "obs", "var", "varm", "uns", "obsp", "varp"]
