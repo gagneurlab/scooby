@@ -165,7 +165,7 @@ def train(config):
             for rc_aug_idx in rc_augs.nonzero():
                 rc_aug_idx = rc_aug_idx[0]
                 flipped_version = torch.flip(targets[rc_aug_idx].unsqueeze(0), (1, -3))
-                targets[rc_aug_idx] = fix_rev_comp2(flipped_version)[0]
+                targets[rc_aug_idx] = fix_rev_comp_rna(flipped_version)[0]
             optimizer.zero_grad()
             with torch.autocast("cuda"):
                 outputs = scooby(inputs, cell_emb_idx)
@@ -177,7 +177,7 @@ def train(config):
             optimizer.step()
             scheduler.step()
             if i % eval_every_n == 0:
-                # evaluate(accelerator, scooby, val_loader) # currently only supported for multiome
+                evaluate(accelerator, scooby, val_loader, mode='rna') 
                 scooby.train()
             if (i % 1000 == 0 and epoch != 0) or (i % 2000 == 0 and epoch == 0 and i != 0):
                 accelerator.save_state(output_dir=f"{output_dir}/scooby_epoch_{epoch}_{i}_{run_name}")

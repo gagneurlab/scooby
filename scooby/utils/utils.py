@@ -190,7 +190,7 @@ def fix_rev_comp_multiome(outputs_rev_comp):
     return test_out
 
 
-def fix_rev_comp2(outputs_rev_comp):
+def fix_rev_comp_rna(outputs_rev_comp):
     """
     Reverses the order of elements in the output tensor for the reverse complement sequence (for RNA-only predictions).
 
@@ -214,7 +214,7 @@ def fix_rev_comp2(outputs_rev_comp):
     return test_out
 
 
-def evaluate(accelerator, csb, val_loader):
+def evaluate(accelerator, csb, val_loader, mode='multiome'):
     """
     Evaluates the model on the validation set.
 
@@ -225,12 +225,17 @@ def evaluate(accelerator, csb, val_loader):
         accelerator: The accelerator object (e.g., from Hugging Face Accelerate).
         csb (torch.nn.Module): The model.
         val_loader (torch.utils.data.DataLoader): The validation data loader.
+        mode (str, optional): The mode of the model. Either 'multiome' or 'rna'. Defaults to 'multiome'.
     """
     device = accelerator.device
     csb.eval()
     output_list, target_list, pearsons_per_track = [], [], []
 
     stop_idx = 2
+    if mode == 'multiome':
+        range_val = 96
+    else:
+        range_val = 64
 
     for i, [inputs, rc_augs, targets, cell_emb_idx] in tqdm.tqdm(enumerate(val_loader)):
         if i < (stop_idx):
@@ -248,7 +253,7 @@ def evaluate(accelerator, csb, val_loader):
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))  # Create a 1x2 subplot grid
 
     # accelerator.print (outputs.shape)
-    for x in range(0, 96):
+    for x in range(0, range_val):
         pearsons_per_track.append(stats.pearsonr(outputs.T[x].flatten(), targets.T[x].flatten())[0])
 
     accelerator.log({"val_rnaseq_across_tracks_pearson_r": np.nanmean(pearsons_per_track)})
