@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from enformer_pytorch.data import GenomeIntervalDataset
 
 from scooby.modeling import Scooby
-from scooby.utils.utils import poisson_multinomial_torch, evaluate, fix_rev_comp2, read_backed, add_weight_decay, get_lora
+from scooby.utils.utils import poisson_multinomial_torch, evaluate, fix_rev_comp_rna, read_backed, add_weight_decay, get_lora
 from scooby.data import onTheFlyDataset
 import scanpy as sc
 import h5py
