@@ -127,3 +127,15 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Test data
+*h5
+*h5ad
+*.gz
+*.gz.tbi
+*bam
+*bam.bai
+*bw
+wandb/
+*pq
+*npz
