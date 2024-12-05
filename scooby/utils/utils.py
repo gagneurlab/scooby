@@ -429,8 +429,7 @@ def get_outputs(csb, seqs, gene_slice, region_slice, predict, model_type, conv_w
 
 
 def get_pseudobulk_count_pred(
-    csb, seqs, cell_emb_conv_weights_and_biases, gene_slice, strand, predict, clip_soft, model_type, num_neighbors=1
-):
+    csb, seqs, cell_emb_conv_weights_and_biases, gene_slice, strand, predict, clip_soft, model_type, num_neighbors=1, chunk_size=70_000):
     """
     Calculates the predicted pseudobulk count for a given gene.
 
@@ -455,15 +454,18 @@ def get_pseudobulk_count_pred(
     stacked_outputs = []
     # go over embeddings for all cells of a cell type, sum the unsquashed predictions
     for conv_weight, conv_bias in cell_emb_conv_weights_and_biases:
-        # get predictions for all cells of one cell type
-        outputs = predict(csb, seqs, seqs_rev_comp, conv_weight, conv_bias, bins_to_predict=gene_slice)
-        # get RNA:
-        if "multiome" in model_type:
-            outputs = outputs[:, :, torch.tensor([1, 1, 0]).repeat(outputs.shape[2] // 3).bool()]
-        outputs = outputs.float().detach()
-        #print (process_rna(outputs, strand, clip_soft, num_neighbors).shape)
-        stacked_outputs.append(process_rna(outputs, strand, clip_soft, num_neighbors).sum())
-        #print (stacked_outputs[-1].shape)
+        tmp_outputs = []
+        for chunked_conv_weight, chunked_conv_bias in zip(torch.split(conv_weight, split_size_or_sections=chunk_size, dim=1), torch.split(conv_bias, split_size_or_sections=chunk_size, dim=1)):
+            # get predictions for all cells of one cell type
+            outputs = predict(csb, seqs, seqs_rev_comp, chunked_conv_weight, chunked_conv_bias, bins_to_predict=gene_slice)
+            # get RNA:
+            if "multiome" in model_type:
+                outputs = outputs[:, :, torch.tensor([1, 1, 0]).repeat(outputs.shape[2] // 3).bool()]
+            outputs = outputs.float().detach()
+            #print (process_rna(outputs, strand, clip_soft, num_neighbors).shape)
+            tmp_outputs.append(process_rna(outputs, strand, clip_soft, num_neighbors).sum())
+        stacked_outputs.append(torch.vstack(tmp_outputs).sum())
+            #print (stacked_outputs[-1].shape)
     return torch.stack(stacked_outputs, dim = 0)
 
 
