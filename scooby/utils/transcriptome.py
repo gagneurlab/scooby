@@ -45,7 +45,7 @@ class Transcriptome:
                 end = int(a[4])
                 strand = a[6]
                 kv = gtf_kv(a[8])
-                gene_id = kv["gene_name"] if not self.use_geneid else kv["gene_id"]
+                gene_id = kv["gene_name"] if not self.use_geneid else kv["gene_id"].split('.')[0]
 
                 # initialize gene
                 if gene_id not in self.genes:
