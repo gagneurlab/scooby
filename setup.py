@@ -12,7 +12,7 @@ setup(
     install_requires=[
         "accelerate >= 0.24.1",
         "enformer-pytorch >= 0.8.10",
-        "borzoi-pytorch @ git+https://github.com/johahi/borzoi-pytorch.git",
+        "borzoi-pytorch >= 0.4.0",
         "peft @ git+https://github.com/lauradmartens/peft.git",
         "scanpy >= 1.10.3",
         "pybigtools == 0.1.1",
