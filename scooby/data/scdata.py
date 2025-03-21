@@ -670,3 +670,48 @@ class onTheFlyExonMultiomePseudobulkDataset(Dataset):
         targets = self._load_pseudobulk(self.cell_types, seq_coord)
         inputs, _, rc_augs = self.genome_ds[idx_gene]
         return inputs, rc_augs, targets.permute(1, 0)
+
+
+class onTheFlyCountDataset(Dataset):
+    def __init__(
+        self,
+        adata_count,
+        embedding,
+        ds,
+        cell_sample_size=32,
+        get_targets=True,
+        random_cells=True,
+        cells_to_run=None,
+        cell_weights=None,
+    ):
+        """
+        """
+        self.cells_to_run = cells_to_run
+        self.embedding = embedding
+        self.get_targets = get_targets
+        self.random_cells = random_cells
+        if not self.random_cells and not cells_to_run:
+            # we are probably just providing seqs?
+            self.cells_to_run = np.zeros(1, dtype=np.int64)
+        self.genome_ds = ds
+        self.cell_sample_size = cell_sample_size
+        self.cell_weights = cell_weights
+        self.adata_count = adata_count
+
+    def __len__(self):
+        return len(self.genome_ds)
+
+    def __getitem__(self, idx):
+        if self.random_cells:
+            idx_cells = np.random.choice(self.embedding.shape[0], size=self.cell_sample_size, p=self.cell_weights)
+        else:
+            idx_cells = self.cells_to_run
+        idx_gene = idx
+        seq_coord = self.genome_ds.df[idx_gene]
+        inputs, _, rc_augs = self.genome_ds[idx_gene]
+        embeddings = torch.from_numpy(np.vstack(self.embedding.iloc[idx_cells]["embedding"].values))
+        if self.get_targets:
+            gene = seq_coord["column_4"].item()
+            targets = torch.from_numpy(self.adata_count[idx_cells, gene].X.A).permute(1,0).unsqueeze(1)
+            return inputs, rc_augs, targets, embeddings
+        return inputs, rc_augs, embeddings
