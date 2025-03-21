@@ -697,11 +697,26 @@ class onTheFlyCountDataset(Dataset):
         self.cell_sample_size = cell_sample_size
         self.cell_weights = cell_weights
         self.adata_count = adata_count
+    
+    def _reinit_fasta_reader(self):
+        """
+        Re-initializes the FastaInterval reader.
+
+        This is necessary because pyfaidx and torch multiprocessing can have compatibility issues.
+        """
+        self.genome_ds.fasta = FastaInterval(
+            fasta_file=self.genome_ds.fasta.seqs.filename,
+            context_length=self.genome_ds.fasta.context_length,
+            return_seq_indices=self.genome_ds.fasta.return_seq_indices,
+            shift_augs=self.genome_ds.fasta.shift_augs,
+            rc_aug=self.genome_ds.fasta.rc_aug,
+        )
 
     def __len__(self):
         return len(self.genome_ds)
 
     def __getitem__(self, idx):
+        self._reinit_fasta_reader()
         if self.random_cells:
             idx_cells = np.random.choice(self.embedding.shape[0], size=self.cell_sample_size, p=self.cell_weights)
         else:
