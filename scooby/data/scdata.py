@@ -730,7 +730,7 @@ class onTheFlyCountDataset(Dataset):
         inputs, _, rc_augs = self.genome_ds[idx_gene]
 
         gene = seq_coord["column_4"].item()
-        gene_slices, strand = get_gene_slice_and_strand(self.transcriptome, gene, seq_coord['column_2'], span = True)
+        gene_slices, strand = get_gene_slice_and_strand(self.transcriptome, gene, seq_coord['column_2'].item(), span = True)
         embeddings = torch.from_numpy(np.vstack(self.embedding.iloc[idx_cells]["embedding"].values))
         if self.get_targets:
             targets = torch.from_numpy(self.adata_count[idx_cells, gene].X.A).permute(1,0).unsqueeze(1)
