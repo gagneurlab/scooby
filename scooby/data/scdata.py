@@ -6,6 +6,8 @@ import scipy.sparse
 import torch
 import tqdm
 from torch.utils.data import Dataset
+from utils.utils import get_gene_slice_and_strand
+from utils.transcriptome import Transcriptome
 
 from enformer_pytorch.data import FastaInterval, GenomeIntervalDataset
 
@@ -683,6 +685,7 @@ class onTheFlyCountDataset(Dataset):
         random_cells=True,
         cells_to_run=None,
         cell_weights=None,
+        gtf_file=None,
     ):
         """
         """
@@ -697,6 +700,7 @@ class onTheFlyCountDataset(Dataset):
         self.cell_sample_size = cell_sample_size
         self.cell_weights = cell_weights
         self.adata_count = adata_count
+        self.transcriptome = Transcriptome(gtf_file)
     
     def _reinit_fasta_reader(self):
         """
@@ -724,9 +728,11 @@ class onTheFlyCountDataset(Dataset):
         idx_gene = idx
         seq_coord = self.genome_ds.df[idx_gene]
         inputs, _, rc_augs = self.genome_ds[idx_gene]
+
+        gene = seq_coord["column_4"].item()
+        gene_slices, strand = get_gene_slice_and_strand(self.transcriptome, gene, seq_coord['column_2'], span = True)
         embeddings = torch.from_numpy(np.vstack(self.embedding.iloc[idx_cells]["embedding"].values))
         if self.get_targets:
-            gene = seq_coord["column_4"].item()
             targets = torch.from_numpy(self.adata_count[idx_cells, gene].X.A).permute(1,0).unsqueeze(1)
-            return inputs, rc_augs, targets, embeddings
-        return inputs, rc_augs, embeddings
+            return inputs, rc_augs, targets, embeddings, gene_slices
+        return inputs, rc_augs, embeddings, gene_slices
