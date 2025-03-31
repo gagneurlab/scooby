@@ -9,7 +9,7 @@ import torch.nn.functional as F
 batch_conv = torch.vmap(F.conv1d, chunk_size = 1024)
 
 class Scooby(Borzoi):
-    def __init__(self, config, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, **params):
+    def __init__(self, config, cell_emb_dim, embedding_dim = 1920, n_tracks = 2, disable_cache = False, use_transform_borzoi_emb = False, cachesize = 2, count_only = False, **params):
         """
     Scooby model for predicting single-cell genomic profiles from DNA sequence.
 
@@ -34,6 +34,7 @@ class Scooby(Borzoi):
         self.n_tracks = n_tracks
         self.embedding_dim = embedding_dim
         self.disable_cache = disable_cache
+        self.count_only = count_only
         dropout_modules = [module for module in self.modules() if isinstance(module, torch.nn.Dropout)]
         batchnorm_modules = [module for module in self.modules() if isinstance(module, torch.nn.BatchNorm1d)]
         [module.eval() for module in dropout_modules] # disable dropout
@@ -188,7 +189,7 @@ class Scooby(Borzoi):
         out = F.softplus(out)
         return out.permute(0,2,1)
         
-    def forward(self, sequence, cell_emb):
+    def forward(self, sequence, cell_emb, gene_slices = None):
         """
         Forward pass of the scooby model.
 
@@ -200,5 +201,8 @@ class Scooby(Borzoi):
             Tensor: Predicted profiles for each cell (batch_size, num_cells, seq_len, n_tracks).
         """
         cell_emb_conv_weights,cell_emb_conv_biases = self.forward_cell_embs_only(cell_emb)
-        out = self.forward_sequence_w_convs(sequence, cell_emb_conv_weights, cell_emb_conv_biases)
+        out = self.forward_sequence_w_convs(sequence, cell_emb_conv_weights, cell_emb_conv_biases, bins_to_predict = gene_slices)
+        if self.count_only:
+            assert gene_slices is not None
+            out = torch.log1p(torch.sum(out, dim = -1))
         return out
