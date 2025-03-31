@@ -6,8 +6,8 @@ import scipy.sparse
 import torch
 import tqdm
 from torch.utils.data import Dataset
-from utils.utils import get_gene_slice_and_strand
-from utils.transcriptome import Transcriptome
+from scooby.utils.utils import get_gene_slice_and_strand
+from scooby.utils.transcriptome import Transcriptome
 
 from enformer_pytorch.data import FastaInterval, GenomeIntervalDataset
 
