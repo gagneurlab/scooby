@@ -240,8 +240,9 @@ def evaluate(accelerator, csb, val_loader, mode='multiome', stop_idx=2):
         range_val = 32
 
     for i, x in tqdm.tqdm(enumerate(val_loader)):
-        if csb.count_only:
+        if len(x) == 5:
             inputs, rc_augs, targets, cell_emb_idx, gene_slices = x 
+            gene_slices = gene_slices[0]
         else:
             inputs, rc_augs, targets, cell_emb_idx = x 
             gene_slices = None
@@ -257,6 +258,7 @@ def evaluate(accelerator, csb, val_loader, mode='multiome', stop_idx=2):
         break
     targets = torch.vstack(target_list).squeeze().numpy(force=True)  # [reindex].flatten(0,1).numpy(force =True)
     outputs = torch.vstack(output_list).squeeze().numpy(force=True)  # [reindex].flatten(0,1).numpy(force =True)
+    print (targets.shape, outputs.shape)
     if mode == 'count':
         accelerator.log({"val_rnaseq_across_cells_pearson_r": np.nanmean(stats.pearsonr(outputs.flatten(), targets.flatten())[0])})
         accelerator.log({"mean_abs_count_difference": np.mean(np.abs(targets.flatten()- outputs.flatten()))})

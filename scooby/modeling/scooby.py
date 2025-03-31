@@ -201,8 +201,8 @@ class Scooby(Borzoi):
             Tensor: Predicted profiles for each cell (batch_size, num_cells, seq_len, n_tracks).
         """
         cell_emb_conv_weights,cell_emb_conv_biases = self.forward_cell_embs_only(cell_emb)
-        out = self.forward_sequence_w_convs(sequence, cell_emb_conv_weights, cell_emb_conv_biases, bins_to_predict = gene_slices)
+        out = self.forward_sequence_w_convs(sequence, cell_emb_conv_weights, cell_emb_conv_biases, bins_to_predict = gene_slices.tolist())
         if self.count_only:
             assert gene_slices is not None
-            out = torch.log1p(torch.sum(out, dim = -1))
+            out = torch.log1p(torch.sum(out, dim = -2))
         return out
