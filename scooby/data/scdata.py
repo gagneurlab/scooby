@@ -78,15 +78,15 @@ class onTheFlyDataset(Dataset):
         self,
         adata_plus,
         adata_minus,
-        neighbors,
         embedding,
         ds,
         clip_soft,
-        cell_sample_size=32,
-        get_targets=True,
-        random_cells=True,
-        cells_to_run=None,
-        cell_weights=None,
+        neighbors: Optional[scipy.sparse.csr_matrix] = None,
+        cell_sample_size: int = 32,
+        get_targets: bool = True,
+        random_cells: bool = True,
+        cells_to_run: Optional[np.ndarray] = None,
+        cell_weights: Optional[np.ndarray] = None,
     ):
         """
     Dataset for on-the-fly generation of single-cell genomic profiles from sparse data.
@@ -98,10 +98,10 @@ class onTheFlyDataset(Dataset):
     Attributes:
         adata_plus (anndata.AnnData): AnnData object containing RNA expression data for the plus strand.
         adata_minus (anndata.AnnData): AnnData object containing RNA expression data for the minus strand.
-        neighbors (scipy.sparse.csr_matrix): Sparse matrix representing cell neighborhood relationships.
         embedding (pd.DataFrame): DataFrame containing cell embeddings.
         ds (GenomeIntervalDataset): Dataset providing genomic intervals and sequences.
         clip_soft (float): Soft clipping value for RNA coverage normalization.
+        neighbors (scipy.sparse.csr_matrix): Sparse matrix representing cell neighborhood relationships.
         cell_sample_size (int, optional): Number of cells to sample per sequence. Defaults to 32.
         get_targets (bool, optional): Whether to generate target profiles. Defaults to True.
         random_cells (bool, optional): Whether to randomly sample cells. Defaults to True.
@@ -110,10 +110,10 @@ class onTheFlyDataset(Dataset):
         chrom_sizes (dict): Dictionary mapping chromosome names to their sizes and offsets.
     """
         self.clip_soft = clip_soft
-        self.neighbors = neighbors
         self.cell_weights = cell_weights
         self.cells_to_run = cells_to_run
         self.embedding = embedding
+        self.neighbors = (neighbors if neighbors is not None else scipy.sparse.csr_matrix((self.embedding.shape[0], self.embedding.shape[0])))
         self.get_targets = get_targets
         self.random_cells = random_cells
         if not self.random_cells and not cells_to_run:
@@ -196,7 +196,7 @@ class onTheFlyDataset(Dataset):
     def __getitem__(self, idx):
         self._reinit_fasta_reader()
         if self.random_cells:
-            idx_cells = np.random.choice(self.neighbors.shape[0], size=self.cell_sample_size, p=self.cell_weights)
+            idx_cells = np.random.choice(self.embedding.shape[0], size=self.cell_sample_size, p=self.cell_weights)
         else:
             idx_cells = self.cells_to_run
         idx_gene = idx
@@ -345,10 +345,10 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
     def __init__(
         self,
         adatas: dict,
-        neighbors: scipy.sparse.csr_matrix,
         embedding: pd.DataFrame,
         ds: GenomeIntervalDataset,
         clip_soft,
+        neighbors: Optional[scipy.sparse.csr_matrix] = None,
         cell_sample_size: int = 32,
         get_targets: bool = True,
         random_cells: bool = True,
@@ -365,10 +365,10 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
 
     Attributes:
         adatas (dict): Dictionary mapping modality names (e.g., 'rna_plus', 'atac') to their corresponding AnnData objects.
-        neighbors (scipy.sparse.csr_matrix): Sparse matrix representing cell neighborhood relationships.
         embedding (pd.DataFrame): DataFrame containing cell embeddings.
         ds (GenomeIntervalDataset): Dataset providing genomic intervals and sequences.
         clip_soft (float): Soft clipping value for RNA coverage normalization.
+        neighbors (scipy.sparse.csr_matrix): Sparse matrix representing cell neighborhood relationships.
         cell_sample_size (int, optional): Number of cells to sample per sequence. Defaults to 32.
         get_targets (bool, optional): Whether to generate target profiles. Defaults to True.
         random_cells (bool, optional): Whether to randomly sample cells. Defaults to True.
@@ -378,10 +378,10 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         chrom_sizes (dict): Dictionary mapping chromosome names to their sizes and offsets.
     """
         self.clip_soft = clip_soft
-        self.neighbors = neighbors
         self.cell_weights = cell_weights
         self.cells_to_run = cells_to_run
         self.embedding = embedding
+        self.neighbors = (neighbors if neighbors is not None else scipy.sparse.csr_matrix((self.embedding.shape[0], self.embedding.shape[0])))
         self.get_targets = get_targets
         self.random_cells = random_cells
         if not self.random_cells and not cells_to_run:
@@ -514,7 +514,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         """
         self._reinit_fasta_reader()
         if self.random_cells:
-            idx_cells = np.random.choice(self.neighbors.shape[0], size=self.cell_sample_size, p=self.cell_weights)
+            idx_cells = np.random.choice(self.embedding.shape[0], size=self.cell_sample_size, p=self.cell_weights)
         else:
             idx_cells = self.cells_to_run
         idx_gene = idx
