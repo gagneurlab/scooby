@@ -13,7 +13,8 @@ def plot_coverage(ax, interval, y, title, ylim, color_map):
         np.linspace(interval[0], interval[1], num=len(y[interval[0] : interval[1]])),
         y[interval[0] : interval[1]],
         color=color_map[title.split(":")[0]],
-        alpha=(0.5 if "Alternative" in title else 1)
+        alpha=(0.5 if "Alternative" in title else 1),
+        rasterized=False
     )
     ax.set_title(title)
     sns.despine(top=True, right=True, bottom=True)
@@ -41,6 +42,7 @@ def plot_line(ax, interval, y, title, ylim):
         np.linspace(interval[0], interval[1], num=len(y[interval[0] : interval[1]])),
         y[interval[0] : interval[1]],
         color="#68AEDA",
+        rasterized=True
     )
     ax.set_title(title)
     sns.despine(top=True, right=True, bottom=True)
@@ -61,7 +63,7 @@ def add_heatmap_to_axes(out, pos, values, color, title, vmax=  None):
     to_heatmap = ax_out[pos]
     to_heatmap.clear()
     print (np.quantile(values, 0.995), values.max())
-    ax = sns.heatmap(values, ax=to_heatmap, cmap = cmap, cbar= False, vmax = vmax )
+    ax = sns.heatmap(values, ax=to_heatmap, cmap = cmap, cbar= False, vmax = vmax, rasterized=True )
     for k,(_, spine) in enumerate(ax.spines.items()):
         if k  == 2 or k == 0:
             spine.set_visible(True)
