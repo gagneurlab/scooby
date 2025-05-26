@@ -8,7 +8,7 @@ Scooby
     :target: https://scooby.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-Code for the scooby `manuscript <https://www.biorxiv.org/content/10.1101/2024.09.19.613754v2>`__. Scooby is the first model to predict
+Code for the scooby `manuscript <https://www.biorxiv.org/content/10.1101/2024.09.19.613754v3>`__. Scooby is the first model to predict
 scRNA-seq coverage and scATAC-seq insertion profiles along the genome at
 single-cell resolution. For this, it leverages the pre-trained
 multi-omics profile predictor Borzoi as a foundation model, equips it
@@ -40,7 +40,7 @@ Scooby package installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -  ``pip install git+https://github.com/gagneurlab/scooby.git``
--  Download file contents from the Zenodo `repo <https://zenodo.org/records/14051793>`__
+-  Download file contents from Zenodo (`Training data <https://doi.org/10.5281/zenodo.15517072>`__ and `Resources <https://doi.org/10.5281/zenodo.15517764>`__)
 -  Use examples from the scooby reproducibility
    `repository <https://github.com/gagneurlab/scooby_reproducibility>`__
 
@@ -51,6 +51,15 @@ We offer a `train
 script for modeling scRNA-seq only <https://github.com/gagneurlab/scooby/blob/main/scripts/train_rna_only.py>`__ and a `script for multiome modeling <https://github.com/gagneurlab/scooby/blob/main/scripts/train_multiome.py>`__.
 Both require SNAPATAC2-preprocessed anndatas and embeddings. Training scooby
 takes 1-2 days on 8 NVIDIA A40 GPUs with 128GB RAM and 32 cores.
+
+Pretrained Models
+------------------
+
+You can find pretrained models for the three datasets of the manuscript on Hugging Face:
+
+-  `Neurips dataset <https://huggingface.co/johahi/neurips-scooby>`__
+-  `OneK1K dataset <https://huggingface.co/lauradmartens/onek1k-scooby>`__
+-  `Epicardioids dataset <https://huggingface.co/lauradmartens/epicardioids-scooby>`__
 
 Model architecture
 ------------------
