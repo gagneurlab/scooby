@@ -84,7 +84,7 @@ def train(config):
         n_tracks=num_tracks,
         return_center_bins_only=True,
         disable_cache=True,
-        use_transform_borzoi_emb=True,
+        use_transform_borzoi_emb=False,
     )
     scooby = get_lora(scooby, train=True)
     parameters = add_weight_decay(scooby, lr = lr, weight_decay = wd)
