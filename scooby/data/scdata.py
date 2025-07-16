@@ -13,7 +13,7 @@ min_value = torch.finfo(torch.float16).min
 max_value = torch.finfo(torch.float16).max
 
 
-def _sparse_to_coverage_rna(m, seq_coord, strand, max_read_length=90):
+def _sparse_to_coverage_rna(m, seq_coord, strand, max_read_length):
     """
     Converts a sparse RNA expression matrix to a dense coverage vector.
 
@@ -52,7 +52,7 @@ def _sparse_to_coverage_rna(m, seq_coord, strand, max_read_length=90):
     return dense_matrix
 
 
-def _sparse_to_coverage_atac(m, seq_coord, max_read_length=90):
+def _sparse_to_coverage_atac(m, seq_coord, max_read_length):
     """
     Converts a sparse ATAC-seq insertion matrix to a dense coverage vector.
 
@@ -89,6 +89,7 @@ class onTheFlyDataset(Dataset):
         random_cells: bool = True,
         cells_to_run: Optional[np.ndarray] = None,
         cell_weights: Optional[np.ndarray] = None,
+        max_read_length: int = 90,
     ):
         """
     Dataset for on-the-fly generation of single-cell genomic profiles from sparse data.
@@ -110,6 +111,7 @@ class onTheFlyDataset(Dataset):
         cells_to_run (np.ndarray, optional): Array of cell indices to use (if not random). Defaults to None.
         cell_weights (np.ndarray, optional): Weights for cell sampling. Defaults to None.
         chrom_sizes (dict): Dictionary mapping chromosome names to their sizes and offsets.
+        max_read_length (int): Maximum read length (Default: 90 for Illumina sequencing)
     """
         self.clip_soft = clip_soft
         self.cell_weights = cell_weights
@@ -125,6 +127,7 @@ class onTheFlyDataset(Dataset):
         self.cell_sample_size = cell_sample_size
         self.adata_plus = adata_plus
         self.adata_minus = adata_minus
+        self.max_read_length = max_read_length
         try:
             self.chrom_sizes = adata_plus.uns["reference_sequences"].copy()
             self.chrom_sizes["offset"] = np.insert(self.chrom_sizes["reference_seq_length"].cumsum()[:-1].values, 0, 0)
@@ -140,7 +143,7 @@ class onTheFlyDataset(Dataset):
         neighbors_to_load = cell_neighbor_ids.tolist() + [bar_code_id]
         return neighbors_to_load
 
-    def _process_cells(self, adata, cells, seq_coord, strand):
+    def _process_cells(self, adata, cells, seq_coord, strand, max_read_length):
         """
         Processes RNA expression data for the given cells and sequence coordinates.
 
@@ -157,7 +160,7 @@ class onTheFlyDataset(Dataset):
             torch.Tensor: Processed RNA expression profiles for the given cells.
         """
         m = adata.obsm["fragment_single"][cells]
-        tensor = _sparse_to_coverage_rna(m=m, seq_coord=seq_coord, strand=strand)
+        tensor = _sparse_to_coverage_rna(m=m, seq_coord=seq_coord, strand=strand, max_read_length=max_read_length)
         seq_cov = torch.nn.functional.avg_pool1d(tensor, kernel_size=32, stride=32) * 32
         seq_cov = -1 + (1 + seq_cov) ** 0.75
 
@@ -181,8 +184,8 @@ class onTheFlyDataset(Dataset):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Processed pseudobulk RNA expression profiles for the plus and minus strands.
         """
-        seq_cov_plus = self._process_cells(self.adata_plus, neighbors, seq_coord, strand="plus")
-        seq_cov_minus = self._process_cells(self.adata_minus, neighbors, seq_coord, strand="minus")
+        seq_cov_plus = self._process_cells(self.adata_plus, neighbors, seq_coord, strand="plus", max_read_length=self.max_read_length)
+        seq_cov_minus = self._process_cells(self.adata_minus, neighbors, seq_coord, strand="minus", max_read_length=self.max_read_length)
         return seq_cov_plus, seq_cov_minus  #
 
     def _reinit_fasta_reader(self):
@@ -224,7 +227,7 @@ class onTheFlyDataset(Dataset):
 
 
 class onTheFlyPseudobulkDataset(Dataset):
-    def __init__(self, cell_types, ds, base_path, seqlevelstyle="UCSC", clip_soft = 384):
+    def __init__(self, cell_types, ds, base_path, seqlevelstyle="UCSC", clip_soft = 384, max_read_length = 90):
         """
     Dataset for loading pre-computed pseudobulk profiles from BigWig files.
 
@@ -237,12 +240,14 @@ class onTheFlyPseudobulkDataset(Dataset):
         base_path (str): Path to the directory containing the BigWig files.
         seqlevelstyle (str, optional): Chromosome naming style ('UCSC' or 'ENSEMBL'). Defaults to 'UCSC'.
         clip_soft (float): Soft clipping value for RNA coverage normalization.
+        max_read_length (int): Maximum read length (Default: 90 for Illumina sequencing)
     """
         self.cell_types = cell_types
         self.genome_ds = ds
         self.base_path = base_path
         self.seqlevelstyle = seqlevelstyle
         self.clip_soft = clip_soft
+        self.max_read_length = max_read_length
 
     def __len__(self):
         return len(self.genome_ds)
@@ -275,8 +280,7 @@ class onTheFlyPseudobulkDataset(Dataset):
         tensor = torch.nan_to_num(torch.as_tensor(np.array(cons_vals, dtype= np.single)))
         tensor = tensor.sum(axis=0).unsqueeze(0)
         # divide by mean read length
-        mean_read_length = 90
-        tensor = tensor / mean_read_length
+        tensor = tensor / self.max_read_length
         seq_cov = torch.nn.functional.avg_pool1d(tensor, kernel_size=32, stride=32) * 32
         seq_cov = -1 + (1 + seq_cov) ** 0.75
 
@@ -357,6 +361,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         cells_to_run: Optional[np.ndarray] = None,
         cell_weights: Optional[np.ndarray] = None,
         normalize_atac: bool = False,
+        max_read_length: int = 90,
     ) -> None:
         """
     Dataset for on-the-fly generation of multi-modal genomic profiles from sparse single-cell data.
@@ -378,6 +383,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         cell_weights (np.ndarray, optional): Weights for cell sampling. Defaults to None.
         normalize_atac (bool, optional): Whether to normalize ATAC-seq coverage. Defaults to False.
         chrom_sizes (dict): Dictionary mapping chromosome names to their sizes and offsets.
+        max_read_length (int): Maximum read length (Default: 90 for Illumina sequencing)
     """
         self.clip_soft = clip_soft
         self.cell_weights = cell_weights
@@ -392,7 +398,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         self.cell_sample_size = cell_sample_size
         self.adatas = adatas
         self.normalize_atac = normalize_atac
-
+        self.max_read_length = max_read_length
         try:
             self.chrom_sizes = self.adatas["rna_plus"].uns["reference_sequences"].copy()
             if "chr" not in self.chrom_sizes["reference_seq_name"][0]:
@@ -411,7 +417,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         neighbors_to_load = cell_neighbor_ids.tolist() + [bar_code_id]
         return neighbors_to_load
 
-    def _process_rna(self, adata, cell_indices, seq_coord, strand):
+    def _process_rna(self, adata, cell_indices, seq_coord, strand, max_read_length):
         """
         Processes RNA expression data for the given cells and sequence coordinates.
 
@@ -428,7 +434,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
             torch.Tensor: Processed RNA expression profiles for the given cells.
         """
         tensor = _sparse_to_coverage_rna(
-            m=adata.obsm["fragment_single"][cell_indices], seq_coord=seq_coord, strand=strand
+            m=adata.obsm["fragment_single"][cell_indices], seq_coord=seq_coord, strand=strand, max_read_length=max_read_length
         )
         seq_cov = torch.nn.functional.avg_pool1d(tensor, kernel_size=32, stride=32) * 32
         seq_cov = -1 + (1 + seq_cov) ** 0.75
@@ -442,7 +448,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         seq_cov = torch.clip(seq_cov, -clip, clip)
         return seq_cov
 
-    def _process_atac(self, adata, cell_indices, seq_coord):
+    def _process_atac(self, adata, cell_indices, seq_coord, max_read_length):
         """
         Processes ATAC-seq data for the given cells and sequence coordinates.
 
@@ -457,7 +463,7 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         Returns:
             torch.Tensor: Processed ATAC-seq profiles for the given cells.
         """
-        tensor = _sparse_to_coverage_atac(m=adata.obsm["insertion"][cell_indices], seq_coord=seq_coord)
+        tensor = _sparse_to_coverage_atac(m=adata.obsm["insertion"][cell_indices], seq_coord=seq_coord, max_read_length=max_read_length)
         seq_cov = torch.nn.functional.avg_pool1d(tensor, kernel_size=32, stride=32) * 32
 
         if self.normalize_atac:
@@ -480,9 +486,9 @@ class onTheFlyMultiomeDataset(Dataset):  # noqa: D101
         for modality, adata in self.adatas.items():
             if "rna" in modality:
                 strand = modality.split("_")[-1]
-                seq_cov = self._process_rna(adata, neighbors, seq_coord, strand=strand)
+                seq_cov = self._process_rna(adata, neighbors, seq_coord, strand=strand, max_read_length=self.max_read_length)
             elif "atac" in modality:
-                seq_cov = self._process_atac(adata, neighbors, seq_coord)
+                seq_cov = self._process_atac(adata, neighbors, seq_coord, max_read_length=self.max_read_length)
             seq_covs.append(seq_cov)
         return torch.cat(seq_covs)
 
