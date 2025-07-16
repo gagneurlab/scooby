@@ -13,7 +13,7 @@ min_value = torch.finfo(torch.float16).min
 max_value = torch.finfo(torch.float16).max
 
 
-def _sparse_to_coverage_rna(m, seq_coord, strand):
+def _sparse_to_coverage_rna(m, seq_coord, strand, max_read_length=90):
     """
     Converts a sparse RNA expression matrix to a dense coverage vector.
 
@@ -24,6 +24,7 @@ def _sparse_to_coverage_rna(m, seq_coord, strand):
         m (scipy.sparse.csr_matrix): Sparse matrix of RNA expression counts.
         seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
         strand (str): Strand of the gene ('plus' or 'minus').
+        max_read_length (int): Maximum read length (Default: 90 for Illumina sequencing)
 
     Returns:
         torch.Tensor: Dense coverage vector for RNA expression.
@@ -38,26 +39,27 @@ def _sparse_to_coverage_rna(m, seq_coord, strand):
             col_indices = m.indices[m.indptr[row] : m.indptr[row + 1]]
             values = m.data[m.indptr[row] : m.indptr[row + 1]]
             for col_index, value in zip(col_indices, values):
-                dense_matrix[col_index : (col_index + value)] += 1 / 90
+                dense_matrix[col_index : (col_index + value)] += 1 / max_read_length
     elif strand == "minus":
         for row in range(m.shape[0]):
             col_indices = m.indices[m.indptr[row] : m.indptr[row + 1]]
             values = m.data[m.indptr[row] : m.indptr[row + 1]]
             for col_index, value in zip(col_indices, values):
-                dense_matrix[(col_index + value + 1) : (col_index + 1)] += 1 / 90
+                dense_matrix[(col_index + value + 1) : (col_index + 1)] += 1 / max_read_length
     # restrict to relevant part
-    dense_matrix = dense_matrix[min([100, seq_coord_2]) : max([-100, seq_coord_3 - chrom_end])]
+    dense_matrix = dense_matrix[min([(max_read_length + 10), seq_coord_2]) : max([-(max_read_length + 10), seq_coord_3 - chrom_end])]
     dense_matrix = torch.from_numpy(dense_matrix).unsqueeze(0)
     return dense_matrix
 
 
-def _sparse_to_coverage_atac(m, seq_coord):
+def _sparse_to_coverage_atac(m, seq_coord, max_read_length=90):
     """
     Converts a sparse ATAC-seq insertion matrix to a dense coverage vector.
 
     Args:
         m (scipy.sparse.csr_matrix): Sparse matrix of ATAC-seq insertion counts.
         seq_coord (tuple): Tuple containing genomic coordinates and sequence information.
+        max_read_length (int): Maximum read length (Default: 90 for Illumina sequencing)
 
     Returns:
         torch.Tensor: Dense coverage vector for ATAC-seq insertions.
@@ -66,7 +68,7 @@ def _sparse_to_coverage_atac(m, seq_coord):
     m = m[:, start:end]
     dense_matrix = m.sum(0).astype(np.single).A[0]
     # restrict to relevant part
-    dense_matrix = dense_matrix[min([100, seq_coord_2]) : max([-100, seq_coord_3 - chrom_end])]
+    dense_matrix = dense_matrix[min([(max_read_length + 10), seq_coord_2]) : max([-(max_read_length + 10), seq_coord_3 - chrom_end])]
     # For ATAC it is easy because we can just use the matrix as is
     dense_matrix = torch.from_numpy(dense_matrix).unsqueeze(0)
 
