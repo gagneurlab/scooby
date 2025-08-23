@@ -139,7 +139,8 @@ def train(config):
         neighbors=neighbors,
         embedding=embedding,
         ds=val_ds,
-        cell_sample_size=32,
+        random_cells=False,
+        cells_to_run = list(np.arange(32))
         cell_weights=None,
         clip_soft=5,
     )
