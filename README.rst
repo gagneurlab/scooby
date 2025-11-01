@@ -8,7 +8,7 @@ Scooby
     :target: https://scooby.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-Code for the scooby `manuscript <https://www.biorxiv.org/content/10.1101/2024.09.19.613754v3>`__. Scooby is the first model to predict
+Code for the scooby `model <https://www.nature.com/articles/s41592-025-02854-5>`__. Scooby is the first model to predict
 scRNA-seq coverage and scATAC-seq insertion profiles along the genome at
 single-cell resolution. For this, it leverages the pre-trained
 multi-omics profile predictor Borzoi as a foundation model, equips it
