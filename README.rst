@@ -69,3 +69,9 @@ Currently, the model is only tested with a batch size of 1.
 .. raw:: html
 
    <img width="500" alt="image" src="https://github.com/user-attachments/assets/98a52a86-67b1-4fb2-8b94-227ce2e47af2">
+
+
+Funding
+------------------
+This work was funded by "ERC Synergy grant" (Grant ID 101118521, European Research Council).
+
