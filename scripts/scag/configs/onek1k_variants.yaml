@@ -1,0 +1,27 @@
+# Replace the /path/to/ placeholders with the locations of your data and weights.
+# Run from scripts/scag/:
+#   python score_onek1k_variants.py --config configs/onek1k_variants.yaml
+# CPU input validation only: append --dry-run
+# Small GPU smoke test: append --max-variants 2 --output-dir results/onek1k_smoke
+
+checkpoint: /path/to/checkpoints/scag_neurips_all_folds/final
+# Relative output paths are resolved against scripts/scag/, independent of launch cwd.
+output_dir: results/onek1k_scag_neurips_all_folds
+
+# Same high-PIP table used by the reproducibility Figure4 notebook, not the
+# unfiltered OneK1K_all_susie.tsv. Keep tissue/beta/PIP metadata for evaluation.
+variants: /path/to/reproducibility_data/eQTL_fig4/all_highpip_susie.tsv
+study_label: OneK1K
+pip_threshold: 0.9
+gene_windows: /path/to/reproducibility_data/eQTL_preds/genes_tsscentred.bed
+gtf: /path/to/reproducibility_data/gencode.v32.annotation.sorted.gtf.gz
+fasta: /path/to/scooby_training_data/genome_human.fa
+embedding: /path/to/scooby_training_data/embedding_no_val_genes_new.pq
+cell_type_index: /path/to/scooby_training_data/celltype_fixed.pq
+
+# Match the existing eQTL inference: RNA gene-span counts, RC averaging,
+# effect = log2(ALT count + 1) - log2(REF count + 1), for each NeurIPS cell type.
+span: true
+clip_soft: 5.0
+cell_chunk_size: 69999  # Tracks; must be a multiple of 3.
+save_every: 10

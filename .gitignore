@@ -139,3 +139,5 @@ dmypy.json
 wandb/
 *pq
 *npz
+# Outputs of the Scooby-2 evaluation scripts
+scripts/scag/results/

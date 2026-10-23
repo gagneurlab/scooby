@@ -1,0 +1,18 @@
+# Replace the /path/to/ placeholders with the locations of your data and weights.
+# Baseline for onek1k_variants_scag_onek1k.yaml: Borzoi-based Scooby trained
+# on OneK1K (the released lauradmartens/onek1k-scooby weights), with identical
+# variants, OneK1K embedding and cell types.
+# From scripts/scag/:
+#   python score_onek1k_variants.py --config configs/onek1k_variants_scooby_onek1k.yaml
+base_config: onek1k_variants.yaml
+backend: scooby
+checkpoint: /path/to/scooby_onek1k  # local copy of the released weights
+output_dir: results/onek1k_scooby_onek1k
+embedding: /path/to/onek1k_training_data/embedding_no_val_genes.pq
+cell_type_index: /path/to/onek1k_training_data/celltype_fixed.pq
+# Read off the checkpoint: a 10-wide cell-state input, a (1920 + 1) * 2 head
+# and a transform_borzoi_emb block.
+cell_emb_dim: 10
+n_tracks: 2
+use_transform_borzoi_emb: true
+cell_chunk_size: 70000

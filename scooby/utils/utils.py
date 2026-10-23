@@ -214,6 +214,18 @@ def fix_rev_comp_rna(outputs_rev_comp):
     return test_out
 
 
+def _unwrap_to_base_model(model):
+    """Reach the underlying nn.Module beneath DDP / accelerate / peft wrappers."""
+    base = model
+    # accelerate / DDP
+    if hasattr(base, "module"):
+        base = base.module
+    # peft
+    if hasattr(base, "base_model") and hasattr(base.base_model, "model"):
+        base = base.base_model.model
+    return base
+
+
 def evaluate(accelerator, csb, val_loader, mode='multiome', stop_idx=2):
     """
     Evaluates the model on the validation set.
@@ -237,12 +249,18 @@ def evaluate(accelerator, csb, val_loader, mode='multiome', stop_idx=2):
     else:
         range_val = 64
 
+    # The dataloader yields NLC; only the Borzoi-based model wants NCL.
+    is_alphagenome = hasattr(_unwrap_to_base_model(csb), "alphagenome")
+
     for i, [inputs, rc_augs, targets, cell_emb_idx] in tqdm.tqdm(enumerate(val_loader)):
         if i < (stop_idx):
             continue
         if i == (stop_idx + 1):
             break
-        inputs = inputs.permute(0, 2, 1).to(device, non_blocking=True)
+        if is_alphagenome:
+            inputs = inputs.to(device, non_blocking=True)
+        else:
+            inputs = inputs.permute(0, 2, 1).to(device, non_blocking=True)
         target_list.append(targets.to(device, non_blocking=True))
         with torch.no_grad():
             with torch.autocast("cuda"):

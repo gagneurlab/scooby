@@ -1,0 +1,13 @@
+# Controlled baseline: NOT the OneK1K-trained/conditioned archived predictions.
+# From scripts/scag/:
+# python score_onek1k_variants.py --config configs/onek1k_variants_scooby_neurips.yaml
+# Append --dry-run for CPU coordinate/REF validation without model downloads.
+# Smoke test: append --max-variants 2 --output-dir results/onek1k_scooby_neurips_smoke
+
+# Inherit exactly the scAG variant selection, genome/gene windows, NeurIPS
+# embeddings, cell-type indices, span aggregation and soft-clipping settings.
+base_config: onek1k_variants.yaml
+backend: scooby
+checkpoint: johahi/neurips-scooby
+revision: 1591d15696c65f14053e4495e52c74812a86fd8d  # Pin the published model.
+output_dir: results/onek1k_scooby_neurips

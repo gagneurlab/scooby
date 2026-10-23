@@ -1,0 +1,71 @@
+# Scooby-2 (scAG) on OneK1K PBMC scRNA-seq (RNA only), from the AlphaGenome
+# all-folds (distilled) weights and trained on every fold, for eQTL scoring.
+# head_input_norm is needed: without it, training on this data collapses.
+#
+# The coverage files ship gzipped and are read backed through h5py, so
+# uncompress them first, preferably to a fast local disk:
+#   for s in plus minus; do
+#     gunzip -c snapatac_merged_$s.h5ad.gz > /path/to/onek1k_training_data/snapatac_merged_$s.h5ad
+#   done
+# Replace the /path/to/ placeholders, then launch from the repository root:
+#   accelerate launch --config_file scripts/scag/accelerate_config.yaml \
+#       -m scooby.scag.train --config scooby/scag/configs/onek1k_all_folds_headnorm.yaml
+
+output_dir: /path/to/checkpoints
+run_name: scag_onek1k_all_folds_headnorm
+
+data:
+  fasta_file: /path/to/scooby_training_data/genome_human.fa
+  bed_file: /path/to/scooby_training_data/sequences.bed
+  adata_rna_plus: /path/to/onek1k_training_data/snapatac_merged_plus.h5ad
+  adata_rna_minus: /path/to/onek1k_training_data/snapatac_merged_minus.h5ad
+  # No adata_atac: RNA-only training, with model.num_tracks: 2.
+  embedding: /path/to/onek1k_training_data/embedding_no_val_genes.pq
+  neighbors: /path/to/onek1k_training_data/no_neighbors.npz
+  adata_rna_key: fragment_single
+  test_fold: -1             # -1: train on all folds
+  val_fold: -1
+  context_length: 524288
+  shift_augs: [-3, 3]
+  rc_aug: true
+  clip_soft: 5.0
+  cell_sample_size: 64
+
+model:
+  cell_emb_dim: 10
+  num_tracks: 2             # RNA plus, RNA minus
+  pretrained_model: /path/to/alphagenome-pytorch/model_all_folds.safetensors
+  organism_index: 0
+  target_bins: 6144
+  early_exit_32bp: true
+  freeze_batchnorm: true
+  use_lora: true
+  standardized_conv_lora: true
+  lora:
+    encoder_convs: true
+    decoder_convs: false
+    attn: true
+    mlp: true
+  lora_r: 8
+  lora_alpha: 8
+  head_input_norm: true
+
+training:
+  batch_size: 2             # per GPU; 4 GPUs give an effective batch of 8
+  lr: 4.0e-5
+  cellstate_lr: 1.0e-4
+  encoder_lora_lr: null
+  wd: 1.0e-6
+  clip_global_norm: 1.0
+  steps_per_epoch: 55497    # training sequences per epoch
+  num_epochs: 20
+  warmup_steps: 2000        # optimizer steps
+  num_workers: 8
+  compile: true
+  compile_mode: default
+  ddp_static_graph: true
+  eval_every_n: 256
+  save_every_n: 2000
+  total_weight: 0.2
+  collapse_patience: 100
+  collapse_threshold: 1.0e-5

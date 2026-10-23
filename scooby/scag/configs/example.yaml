@@ -1,0 +1,59 @@
+# Example Scooby-2 (scAG) training config. Replace the /path/to/ placeholders;
+# relative paths resolve against this file's directory, and `~` and $VARS
+# are expanded.
+
+output_dir: /path/to/checkpoints
+run_name: scag_example
+
+data:
+  fasta_file: /path/to/data/genome.fa
+  bed_file: /path/to/data/sequences.bed
+  val_bed_file: /path/to/data/val_gene_sequences.csv
+  adata_rna_plus: /path/to/data/snapatac_merged_fixed_plus.h5ad
+  adata_rna_minus: /path/to/data/snapatac_merged_fixed_minus.h5ad
+  adata_atac: /path/to/data/snapatac_merged_fixed_atac.h5ad
+  embedding: /path/to/data/embedding_no_val_genes.pq
+  neighbors: /path/to/data/no_neighbors_no_val_genes.npz
+  test_fold: -1
+  val_fold: -1
+  context_length: 524288
+  shift_augs: [-3, 3]
+  rc_aug: true
+  clip_soft: 5.0
+  cell_sample_size: 64
+  normalize_atac: true
+
+model:
+  cell_emb_dim: 17
+  num_tracks: 3
+  # AlphaGenome weights (.safetensors or .pth); unset means random init.
+  pretrained_model: /path/to/alphagenome-pytorch/model_all_folds.safetensors
+  organism_index: 0        # 0 human, 1 mouse
+  target_bins: 6144        # centred crop, matching the multiome targets
+  early_exit_32bp: true    # stop the decoder at 32 bp
+  freeze_batchnorm: true
+  use_lora: true
+  standardized_conv_lora: true  # fold conv adapters into the standardized kernel
+  lora:
+    encoder_convs: true
+    decoder_convs: false   # early_exit_32bp trims the decoder anyway
+    attn: true
+    mlp: true
+  lora_r: 8
+  lora_alpha: 8
+  head_input_norm: false   # turn on if training collapses (needed for scRNA-seq)
+
+training:
+  batch_size: 1
+  lr: 4.0e-5
+  cellstate_lr: 1.0e-4
+  encoder_lora_lr: null    # defaults to lr
+  wd: 1.0e-6
+  clip_global_norm: 1.0
+  warmup_steps: 5000
+  num_epochs: 4
+  steps_per_epoch: 45000
+  eval_every_n: 256
+  save_every_n: 2000
+  total_weight: 0.2
+  collapse_patience: 50    # abort if the output head saturates

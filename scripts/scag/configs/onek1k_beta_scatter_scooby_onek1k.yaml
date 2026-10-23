@@ -1,0 +1,38 @@
+# After configs/onek1k_variants_scooby_onek1k.yaml and the scAG plot config,
+# from scripts/scag/:
+#   python plot_onek1k_beta.py --config configs/onek1k_beta_scatter_scooby_onek1k.yaml
+results_dir: results/onek1k_scooby_onek1k
+output_dir: results/onek1k_scooby_onek1k/plots
+model_label: Scooby (OneK1K)
+color: steelblue
+
+# Each OneK1K tissue is matched to the identically named OneK1K cell type the
+# model was conditioned on; no grouping is needed.
+cell_type_mapping:
+  CD4+ TCM cell: [CD4+_TCM_cell]
+  CD4+ T cell: [CD4+_T_cell]
+  NK cell: [NK_cell]
+  CD8+ TEM cell: [CD8+_TEM_cell]
+  B cell: [B_cell]
+  CD8+ T cell: [CD8+_T_cell]
+  memory B cell: [memory_B_cell]
+  monocyte: [monocyte]
+  CD4+ TEM cell: [CD4+_TEM_cell]
+  Treg memory: [Treg_memory]
+  CD16+ monocyte: [CD16+_monocyte]
+  CD8+ TCM cell: [CD8+_TCM_cell]
+  dendritic cell: [dendritic_cell]
+  gdT cell: [gdT_cell]
+  CD4+ CTL cell: [CD4+_CTL_cell]
+  MAIT cell: [MAIT_cell]
+  CD56+ NK cell: [CD56+_NK_cell]
+  plasmablast: [plasmablast]
+  hematopoietic precursor cell: [hematopoietic_precursor_cell]
+  plasmacytoid dendritic cell: [plasmacytoid_dendritic_cell]
+  platelet: [platelet]
+
+# The published OneK1K Scooby-2 model (onek1k_all_folds_headnorm); run
+# configs/onek1k_beta_scatter_scag_onek1k_headnorm.yaml first.
+reference_points: results/onek1k_scag_onek1k_headnorm/plots/beta_vs_pred_effect_points.tsv
+reference_label: Scooby-2 (OneK1K, head norm)
+reference_color: crimson

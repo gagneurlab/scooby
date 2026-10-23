@@ -1,0 +1,18 @@
+# Run from scripts/scag/: python plot_onek1k_beta.py --config configs/onek1k_beta_scatter.yaml
+# Relative paths are resolved against scripts/scag/.
+results_dir: results/onek1k_scag_neurips_all_folds
+output_dir: results/onek1k_scag_neurips_all_folds/plots
+color: crimson
+
+# Explicit, broad cell-type matching; average predicted log effects across
+# listed NeurIPS types (as in the reproducibility Figure4 notebook).
+# Memory-specific, Treg, MAIT and gdT labels have no direct counterparts in
+# this NeurIPS annotation and are NOT silently assigned to naive/activated T.
+# Excluded association counts are saved alongside the figures.
+cell_type_mapping:
+  B cell: [Naive_CD20+_B, Transitional_B, B1_B]
+  CD4+ T cell: [CD4+_T_naive, CD4+_T_activated]
+  CD8+ T cell: [CD8+_T_naive, CD8+_T_activated]
+  NK cell: [NK]
+  monocyte: [CD14+_Mono, CD16+_Mono]
+  CD16+ monocyte: [CD16+_Mono]

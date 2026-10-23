@@ -4,7 +4,7 @@ Installation
 Hardware requirements
 ---------------------
 
--  NVIDIA GPU (tested on A40), Linux, Python (tested with v3.9)
+-  NVIDIA GPU (tested on A40), Linux, Python >= 3.12 (required by alphagenome-pytorch)
 
 Installation instructions
 -------------------------

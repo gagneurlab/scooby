@@ -1,0 +1,20 @@
+# After running configs/onek1k_variants_scooby_neurips.yaml:
+# python plot_onek1k_beta.py --config configs/onek1k_beta_scatter_scooby_neurips.yaml
+results_dir: results/onek1k_scooby_neurips
+output_dir: results/onek1k_scooby_neurips/plots
+model_label: Scooby (NeurIPS)
+color: steelblue
+
+# Identical mapping to configs/onek1k_beta_scatter.yaml: both models are now
+# decoded using the same NeurIPS cell embeddings and cell-type groups.
+cell_type_mapping:
+  B cell: [Naive_CD20+_B, Transitional_B, B1_B]
+  CD4+ T cell: [CD4+_T_naive, CD4+_T_activated]
+  CD8+ T cell: [CD8+_T_naive, CD8+_T_activated]
+  NK cell: [NK]
+  monocyte: [CD14+_Mono, CD16+_Mono]
+  CD16+ monocyte: [CD16+_Mono]
+
+reference_points: results/onek1k_scag_neurips_all_folds/plots/beta_vs_pred_effect_points.tsv
+reference_label: Scooby-2
+reference_color: crimson

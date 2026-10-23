@@ -1,0 +1,10 @@
+# Scooby-2 trained on OneK1K (onek1k_all_folds_headnorm.yaml), scored in OneK1K
+# cell states; everything else is inherited from onek1k_variants.yaml. Replace
+# the /path/to/ placeholders, then run from scripts/scag/:
+#   python score_onek1k_variants.py --config configs/onek1k_variants_scag_onek1k_headnorm.yaml
+base_config: onek1k_variants.yaml
+checkpoint: /path/to/checkpoints/scag_onek1k_all_folds_headnorm/final
+output_dir: results/onek1k_scag_onek1k_headnorm
+embedding: /path/to/onek1k_training_data/embedding_no_val_genes.pq
+cell_type_index: /path/to/onek1k_training_data/celltype_fixed.pq
+cell_chunk_size: 70000  # Tracks; must be a multiple of 2 for RNA-only models.

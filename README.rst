@@ -24,7 +24,8 @@ contains notebooks to reproduce the results of the manuscript.
 Hardware requirements
 ---------------------
 
--  NVIDIA GPU (tested on A40), Linux, Python (tested with v3.9)
+-  NVIDIA GPU (tested on A40), Linux, Python >= 3.12 (required by
+   alphagenome-pytorch; scooby 0.1 was tested with v3.9)
 
 Installation instructions
 -------------------------
@@ -60,6 +61,32 @@ You can find pretrained models for the three datasets of the manuscript on Huggi
 -  `Neurips dataset <https://huggingface.co/johahi/neurips-scooby>`__
 -  `OneK1K dataset <https://huggingface.co/lauradmartens/onek1k-scooby>`__
 -  `Epicardioids dataset <https://huggingface.co/lauradmartens/epicardioids-scooby>`__
+
+Scooby-2: AlphaGenome backbone
+------------------------------
+
+Scooby-2 (developed as scAG) keeps Scooby's cell-state decoder and replaces
+Borzoi with `AlphaGenome <https://github.com/genomicsxai/alphagenome-pytorch>`__.
+It is part of the ``scooby`` package:
+
+.. code-block:: bash
+
+   pip install git+https://github.com/gagneurlab/scooby.git
+   # or, from a clone of this repository
+   pip install -e .
+
+A checkpoint is a directory holding ``model.safetensors`` and
+``scag_config.yaml``; ``from_pretrained`` rebuilds the architecture and LoRA
+adapters from the config:
+
+.. code-block:: python
+
+   from scooby import ScoobyAlphaGenome
+   model = ScoobyAlphaGenome.from_pretrained("checkpoint/", device="cuda")
+
+A Hugging Face Hub repo id can be passed instead of a local directory. See
+`scooby/scag/README.md <scooby/scag/README.md>`__ for training, prediction and
+the evaluation scripts in ``scripts/scag``.
 
 Model architecture
 ------------------
