@@ -21,6 +21,8 @@ The reproducibility
 `repository <https://github.com/gagneurlab/scooby_reproducibility>`__
 contains notebooks to reproduce the results of the manuscript.
 
+**For scooby-2, please check out the scooby-2 branch of this repo.**
+
 Hardware requirements
 ---------------------
 
